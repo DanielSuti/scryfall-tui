@@ -96,6 +96,16 @@ async fn reaching_the_end_loads_exactly_one_more_batch() {
 }
 
 #[tokio::test]
+async fn end_loads_the_next_batch_like_upper_g() {
+    let mut h = Harness::start(dragons(6), 2, 1).await;
+    h.search("dragon").await;
+    assert_eq!(h.result_names().len(), 2);
+    h.press("<End>");
+    h.settle().await;
+    assert_eq!(h.result_names().len(), 4);
+}
+
+#[tokio::test]
 async fn no_match_shows_scryfalls_notice() {
     let mut h = Harness::start(dragons(2), 175, 6).await;
     h.search("goblin").await;

@@ -214,42 +214,42 @@ fn register_pane_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationErr
     let normal = Mode::Normal;
     reg.add(
         normal,
-        &["j"],
+        &["j", "<Down>"],
         motion("pane.down", "Next row", |app| {
             app.motion(Motion::Down);
         }),
     )?;
     reg.add(
         normal,
-        &["k"],
+        &["k", "<Up>"],
         motion("pane.up", "Previous row", |app| {
             app.motion(Motion::Up);
         }),
     )?;
     reg.add(
         normal,
-        &["gg"],
+        &["gg", "<Home>"],
         motion("pane.top", "First row", |app| {
             app.motion(Motion::Top);
         }),
     )?;
     reg.add(
         normal,
-        &["G"],
+        &["G", "<End>"],
         motion("pane.bottom", "Last row", |app| {
             app.motion(Motion::Bottom);
         }),
     )?;
     reg.add(
         normal,
-        &["<C-d>"],
+        &["<C-d>", "<PageDown>"],
         motion("pane.half_down", "Half a page down", |app| {
             app.motion(Motion::HalfPageDown);
         }),
     )?;
     reg.add(
         normal,
-        &["<C-u>"],
+        &["<C-u>", "<PageUp>"],
         motion("pane.half_up", "Half a page up", |app| {
             app.motion(Motion::HalfPageUp);
         }),

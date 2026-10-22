@@ -118,13 +118,13 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 | | `+`, `_` | Reserved and unbound. |
 | Search bar, insert mode | `<CR>` | Run the search. It enters history, and focus moves to the results. |
 | | `<Esc>` | Normal mode. |
-| History | `j`/`k` | Move. |
+| History | `j`/`k` or `↓`/`↑` | Move. |
 | | `<CR>` | Run from the cache, or fetch if the query isn't cached. |
 | | `e` | Copy the query to the search bar for editing. |
 | | `dd` | Delete the entry. |
-| Results | `j`/`k`, `gg`/`G`, `<C-d>`/`<C-u>` | Move. Reaching the last loaded row loads the next batch. |
+| Results | `j`/`k`, `gg`/`G`, `<C-d>`/`<C-u>`, or `↓`/`↑`, `Home`/`End`, `PageDown`/`PageUp` | Move. Reaching the last loaded row loads the next batch. |
 | | `d`, `<CR>`, `q` | As in the transition table. |
-| Full detail | `j`/`k` | Scroll. |
+| Full detail | `j`/`k` or `↓`/`↑` | Scroll. |
 | | `J`/`K` | Previous or next card. |
 | | `<CR>`, `q` | As in the transition table. |
 

@@ -201,8 +201,7 @@ fn press(app: &mut App, notation: &str) {
         .unwrap()
         .resolve(LEADER);
     for k in keys {
-        let modifiers = KeyModifiers::NONE;
-        app.handle_event(AppEvent::Key(KeyEvent::new(k.code(), modifiers)));
+        app.handle_event(AppEvent::Key(k.to_event()));
     }
 }
 
@@ -334,6 +333,38 @@ fn motions_move_the_focused_list() {
     press(&mut app, "G");
     assert_eq!(app.results.list().cursor(), 29);
     press(&mut app, "gg");
+    assert_eq!(app.results.list().cursor(), 0);
+}
+
+#[test]
+fn navigation_keys_move_like_the_vim_motions() {
+    for (vim, key) in [
+        ("j", "<Down>"),
+        ("k", "<Up>"),
+        ("G", "<End>"),
+        ("gg", "<Home>"),
+        ("<C-d>", "<PageDown>"),
+        ("<C-u>", "<PageUp>"),
+    ] {
+        let cursor_after = |notation: &str| {
+            let mut app = sized(112, 12);
+            app.results.list_mut().set_rows(rows("Card", 30));
+            press(&mut app, "jjjjjjjjjj");
+            press(&mut app, notation);
+            app.results.list().cursor()
+        };
+        let expected = cursor_after(vim);
+        assert_ne!(expected, 10, "{vim} moves the cursor");
+        assert_eq!(cursor_after(key), expected, "{key} moves like {vim}");
+    }
+}
+
+#[test]
+fn arrows_edit_text_in_insert_mode() {
+    let mut app = sized(112, 12);
+    app.results.list_mut().set_rows(rows("Card", 30));
+    press(&mut app, "1abc<Left>X<Down>");
+    assert_eq!(app.search_bar.query(), "abXc");
     assert_eq!(app.results.list().cursor(), 0);
 }
 
