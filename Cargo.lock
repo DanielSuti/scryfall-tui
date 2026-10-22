@@ -1361,6 +1361,7 @@ dependencies = [
  "insta",
  "ratatui",
  "tokio",
+ "unicode-width",
 ]
 
 [[package]]
