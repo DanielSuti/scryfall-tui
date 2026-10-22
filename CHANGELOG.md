@@ -14,3 +14,4 @@ All notable changes to this project are documented in this file, newest release 
 - Key notation parser for sequences such as `<leader>ss`, `gg` and `<C-d>`, matched against normalised terminal key events.
 - Keymap with bindings per mode and scope, rejecting prefix conflicts, and a dispatcher that turns key presses into commands with the focused scope taking precedence.
 - Normal and insert modes. Keys are dispatched through the keymap with `<Space>` as leader, insert mode sends unbound keys to the text input, and `<Esc>` returns to normal mode.
+- Which-key popup listing the keys that complete a pending sequence, shown after a short delay.

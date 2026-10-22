@@ -1,0 +1,10 @@
+---
+source: src/tui/app.rs
+expression: terminal.backend()
+---
+"                              "
+"                 ╭───────────╮"
+"                 │ ab First  │"
+"                 │ c  Second │"
+"                 ╰───────────╯"
+" NORMAL                       "
