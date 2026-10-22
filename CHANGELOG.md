@@ -10,3 +10,4 @@ All notable changes to this project are documented in this file, newest release 
 - GitHub Actions workflow running rustfmt, clippy and the tests.
 - Terminal UI shell: raw-mode terminal setup and restore, an async event loop, and a status line showing the mode. `Q` quits.
 - Display-width truncation helper that marks cut text with `...`.
+- Command registry: named commands with a description, scope, optional status-line hint and handler.
