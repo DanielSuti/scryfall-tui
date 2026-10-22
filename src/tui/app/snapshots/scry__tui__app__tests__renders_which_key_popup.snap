@@ -1,0 +1,14 @@
+---
+source: src/tui/app/tests.rs
+expression: render(&app)
+---
+"╭ [1] Search ──────────────────────────╮"
+"│                                      │"
+"╰──────────────────────────────────────╯"
+"┏ [3] R╭───────────────────────────────╮"
+"┃      │ sk List every key and command │"
+"┃      │ ss New search                 │"
+"┃      │ ab First                      │"
+"┃      │ c  Second                     │"
+"┗━━━━━━╰───────────────────────────────╯"
+" NORMAL  │ [3] Results d detail · ⏎ ... "

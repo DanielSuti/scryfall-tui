@@ -1,0 +1,28 @@
+---
+source: tests/app_detail.rs
+expression: h.render()
+---
+"╭ [1] Search ──────────────────────────────────────────────────────────────────────────────────────────────────╮"
+"│ e                                                                                                            │"
+"╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+"╭ [2] History ─────────────╮┏ [3] Detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+"│▌e                       3│┃ Glorybringer                                                            {3}{R}{R}┃"
+"│                          │┃ Creature — Dragon                                                             4/4┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ Flying, haste                                                                    ┃"
+"│                          │┃ You may exert this creature as it attacks. When you do, it deals 4 damage to     ┃"
+"│                          │┃ target non-Dragon creature an opponent controls. (An exerted creature won't untap┃"
+"│                          │┃ during your next untap step.)                                                    ┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ What the initiates face in the final trial is completely at Hazoret's discretion.┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ standard   not legal    historic   legal                                         ┃"
+"│                          │┃ pioneer    legal        alchemy    not legal                                     ┃"
+"│                          │┃ modern     legal        brawl      legal                                         ┃"
+"│                          │┃ commander  legal        timeless   legal                                         ┃"
+"│                          │┃ legacy     legal                                                                 ┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃                                                                                  ┃"
+"╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+" NORMAL  │ [3] Detail │ 3 of 3 loaded │ by name                              ⏎ split · q back · J next · K prev "
