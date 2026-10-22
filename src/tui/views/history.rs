@@ -41,6 +41,11 @@ impl HistoryView {
             .set_rows(self.entries.iter().map(|e| e.query.clone()).collect());
     }
 
+    /// Moves the cursor to the newest entry.
+    pub fn select_first(&mut self) {
+        self.list.select(0, 1);
+    }
+
     /// Returns the entry under the cursor.
     pub fn selected(&self) -> Option<&HistoryEntry> {
         self.entries.get(self.list.cursor())

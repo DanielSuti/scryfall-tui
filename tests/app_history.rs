@@ -79,6 +79,11 @@ async fn enter_on_a_cached_entry_sends_no_request() {
         ["dragon", "sol"],
         "re-running moves it to the top"
     );
+    assert_eq!(
+        h.app.history_cursor(),
+        0,
+        "the cursor follows the entry to the top"
+    );
 }
 
 #[tokio::test]

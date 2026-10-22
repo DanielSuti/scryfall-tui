@@ -89,13 +89,20 @@ impl App {
         &self.history
     }
 
-    /// Puts `query` at the top of the history, with its count when its results are cached.
+    /// Returns the index of the history entry under the cursor.
+    pub fn history_cursor(&self) -> usize {
+        self.history_view.cursor()
+    }
+
+    /// Puts `query` at the top of the history, with its count when its results are cached,
+    /// and moves the history cursor onto it.
     pub(super) fn record_search(&mut self, query: &str) {
         self.history.record(query);
         if let Some(total) = self.cache.get(query).and_then(|r| r.total_cards()) {
             self.history.set_total(query, Some(total));
         }
         self.history_changed();
+        self.history_view.select_first();
     }
 
     /// Shows the history and saves it.

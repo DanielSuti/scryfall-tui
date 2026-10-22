@@ -34,6 +34,6 @@ All notable changes to this project are documented in this file, newest release 
 - Results view with name, cost and card-type columns cut with `...`, loaded and total counts in the status line, Scryfall's warnings and no-match notice, and the next batch loading when the cursor moves past the last row.
 - Card detail in the split and the full detail: every face's name, cost, type line, stats, oracle and flavor text, and the legalities of `detail.formats`. `J`/`K` step cards in the full detail, and formats Scryfall does not report are named in the status line.
 - Search history model: newest first, re-run queries move to the top, capped at `history.max_entries`, saved atomically as JSON Lines.
-- History panel listing past queries with their result counts, cutting long queries with `...`. `<Enter>` runs an entry from the cache, `e` edits it in the search bar and `dd` deletes it. The history is saved in `~/.local/state/scry/history.jsonl`.
+- History panel listing past queries with their result counts, cutting long queries with `...`. `<Enter>` runs an entry from the cache and moves it to the top with the cursor, `e` edits it in the search bar and `dd` deletes it. The history is saved in `~/.local/state/scry/history.jsonl`.
 - Failed searches keep their loaded cards and show the reason in the status line until the query is run again. Network failures and rate-limit pauses are shown there as well.
 - Ignored test running one real search against the Scryfall API.
