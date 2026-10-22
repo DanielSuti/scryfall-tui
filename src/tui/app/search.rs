@@ -53,6 +53,7 @@ impl App {
         if self.main_view == MainView::FullDetail {
             self.show_main(MainView::Results);
         }
+        self.record_search(&query);
         self.run_query(&query);
     }
 
@@ -116,6 +117,10 @@ impl App {
             SearchUpdate::Page(page) => page.cards.first().cloned(),
             _ => None,
         };
+        let first_total = match &update {
+            SearchUpdate::Page(page) if results.pages_loaded() == 0 => Some(page.total_cards),
+            _ => None,
+        };
         match update {
             SearchUpdate::Page(page) => results.apply(page),
             SearchUpdate::RateLimited(pause) => {
@@ -139,6 +144,10 @@ impl App {
         }
         if let Some(card) = first_card {
             self.check_formats(&card);
+        }
+        if let Some(total) = first_total {
+            self.history.set_total(query, total);
+            self.history_changed();
         }
         if displayed {
             self.refresh_results(query);

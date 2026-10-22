@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use clap::Parser;
 use scry::app::config::Config;
+use scry::app::history::History;
 use scry::app::paths;
 use scry::cli::Cli;
 use scry::scryfall::client::ScryfallClient;
@@ -28,11 +29,18 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         Some(path) => Config::load(&path)?,
         None => Config::default(),
     };
+    let history_path = paths::history_file();
+    let history = match &history_path {
+        Some(path) => History::load(path, config.history.max_entries)?,
+        None => History::new(config.history.max_entries),
+    };
     let (events, background) = tokio::sync::mpsc::unbounded_channel();
     let services = Services {
         search: Arc::new(ApiSearch::new(ScryfallClient::new()?)),
         events,
     };
-    scry::tui::terminal::run(App::with_services(config, services), background).await?;
+    let mut app = App::with_services(config, services);
+    app.set_history(history, history_path);
+    scry::tui::terminal::run(app, background).await?;
     Ok(())
 }

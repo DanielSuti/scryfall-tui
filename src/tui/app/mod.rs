@@ -1,6 +1,7 @@
 //! Application state and event handling.
 
 mod commands;
+mod history;
 pub mod registrar;
 mod search;
 #[cfg(test)]
@@ -18,6 +19,7 @@ use tokio::time::Instant;
 
 use crate::app::command::{CommandId, CommandRegistry, Scope};
 use crate::app::config::Config;
+use crate::app::history::History;
 use crate::app::results_cache::ResultsCache;
 use crate::app::selection::Selection;
 use crate::domain::search_results::{SearchPage, SearchResults};
@@ -32,11 +34,11 @@ use crate::tui::layout::{
 };
 use crate::tui::main_panel::{Back, MainView};
 use crate::tui::picker::picker::{Picker, PickerOutcome};
-use crate::tui::text::truncate;
 use crate::tui::views::detail::DetailView;
+use crate::tui::views::history::HistoryView;
 use crate::tui::views::results::{ResultsView, load_summary};
 use crate::tui::views::search_bar::SearchBar;
-use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
+use crate::tui::widgets::item_list::{Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::Pane;
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
@@ -115,7 +117,9 @@ pub struct App {
     detail: DetailView,
     format_warning: Option<String>,
     formats_checked: bool,
-    history: ItemList,
+    history: History,
+    history_path: Option<std::path::PathBuf>,
+    history_view: HistoryView,
     cache: ResultsCache,
     batches_running: usize,
     prompt: Option<QueryInput>,
@@ -146,6 +150,7 @@ impl App {
     /// Panics if two built-in commands share an id or two built-in key bindings conflict. Both
     /// are programming errors caught by the tests.
     pub fn with_config(config: Config) -> Self {
+        let max_history = config.history.max_entries;
         let mut app = Self {
             config,
             services: None,
@@ -164,7 +169,9 @@ impl App {
             detail: DetailView::new(),
             format_warning: None,
             formats_checked: false,
-            history: ItemList::new(),
+            history: History::new(max_history),
+            history_path: None,
+            history_view: HistoryView::new(),
             cache: ResultsCache::new(),
             batches_running: 0,
             prompt: None,
@@ -495,7 +502,7 @@ impl App {
             (Panel::Main, MainView::FullDetail) | (Panel::Detail, _) => {
                 Some((&mut self.detail, viewport))
             }
-            (Panel::History, _) => Some((&mut self.history, viewport)),
+            (Panel::History, _) => Some((&mut self.history_view, viewport)),
             (Panel::SearchBar, _) => None,
         }
     }
@@ -541,7 +548,7 @@ impl App {
             focused(Panel::SearchBar) && self.mode == Mode::Insert && self.prompt.is_none(),
         );
         if let Some(history) = areas.history {
-            self.render_list(frame, &self.history, Panel::History, history);
+            self.render_history(frame, history);
         }
         let block = panel_block(self.title(Panel::Main), focused(Panel::Main));
         let inner = block.inner(areas.main);
@@ -560,7 +567,7 @@ impl App {
         }
         if let Some(overlay) = areas.overlay {
             frame.render_widget(Clear, overlay);
-            self.render_list(frame, &self.history, Panel::History, overlay);
+            self.render_history(frame, overlay);
         }
 
         if let Some(prompt) = &self.prompt {
@@ -608,14 +615,12 @@ impl App {
         }
     }
 
-    fn render_list(&self, frame: &mut Frame, list: &ItemList, panel: Panel, area: Rect) {
-        let focused = self.focus == panel;
-        let block = panel_block(self.title(panel), focused);
+    fn render_history(&self, frame: &mut Frame, area: Rect) {
+        let focused = self.focus == Panel::History;
+        let block = panel_block(self.title(Panel::History), focused);
         let inner = block.inner(area);
         frame.render_widget(block, area);
-        list.render(inner, frame.buffer_mut(), focused, |index, width| {
-            ratatui::text::Line::from(truncate(&list.rows()[index], width))
-        });
+        self.history_view.render(inner, frame.buffer_mut(), focused);
     }
 
     fn title(&self, panel: Panel) -> String {

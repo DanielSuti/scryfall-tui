@@ -203,7 +203,8 @@ pub(super) fn register_all(
     )?;
     register_main_panel_commands(&mut reg)?;
     register_pane_commands(&mut reg)?;
-    super::search::register(&mut reg)
+    super::search::register(&mut reg)?;
+    super::history::register(&mut reg)
 }
 
 fn register_pane_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {

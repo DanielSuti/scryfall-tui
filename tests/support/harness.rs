@@ -64,6 +64,13 @@ impl Harness {
         }
     }
 
+    /// Loads the history from `path` and saves it there after every change.
+    pub fn use_history_file(&mut self, path: &std::path::Path) {
+        let max = self.app.config().history.max_entries;
+        let history = scry::app::history::History::load(path, max).unwrap();
+        self.app.set_history(history, Some(path.to_owned()));
+    }
+
     /// Presses the keys of `notation`, such as `<leader>ss`.
     pub fn press(&mut self, notation: &str) {
         for key in KeySequence::parse(notation).unwrap().resolve(LEADER) {

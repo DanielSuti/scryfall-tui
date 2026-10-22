@@ -303,12 +303,14 @@ fn a_miss_keeps_the_cursor_and_says_so() {
 fn only_the_focused_panel_is_searched() {
     let mut app = sized(112, 12);
     app.results.list_mut().set_rows(rows("Card", 5));
-    app.history
-        .set_rows(vec!["t:dragon".into(), "o:draw".into()]);
+    let mut history = History::new(std::num::NonZeroUsize::new(5).unwrap());
+    history.record("o:draw");
+    history.record("t:dragon");
+    app.set_history(history, None);
     press(&mut app, "/draw<CR>");
     assert_eq!(app.message().unwrap().text, "Pattern not found: draw");
     press(&mut app, "2n");
-    assert_eq!(app.history.cursor(), 1);
+    assert_eq!(app.history_view.cursor(), 1);
     assert_eq!(app.results.list().cursor(), 0);
 }
 
