@@ -16,3 +16,4 @@ All notable changes to this project are documented in this file, newest release 
 - Normal and insert modes. Keys are dispatched through the keymap with `<Space>` as leader, insert mode sends unbound keys to the text input, and `<Esc>` returns to normal mode.
 - Which-key popup listing the keys that complete a pending sequence, shown after a short delay.
 - Status line with sections, messages and key hints for the focused panel, taken from the command registry and cut with `...` when they don't fit.
+- Scrollable list widget with `j`/`k`, `gg`/`G` and `<C-d>`/`<C-u>` motions, and a signal when moving past the last row.
