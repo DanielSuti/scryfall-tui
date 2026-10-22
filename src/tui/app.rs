@@ -7,6 +7,7 @@ use ratatui::widgets::Widget;
 use tokio::time::Instant;
 
 use crate::app::command::{Command, CommandId, CommandRegistry, Scope};
+use crate::app::config::Config;
 use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
@@ -74,6 +75,7 @@ pub enum AppEvent {
 /// The whole application state. Rendering is a pure function of it.
 #[derive(Debug)]
 pub struct App {
+    config: Config,
     mode: Mode,
     quit: bool,
     commands: CommandRegistry<App>,
@@ -100,13 +102,22 @@ impl Default for App {
 }
 
 impl App {
+    /// Creates the application with the default configuration.
+    ///
+    /// # Panics
+    /// See [`App::with_config`].
+    pub fn new() -> Self {
+        Self::with_config(Config::default())
+    }
+
     /// Creates the application in normal mode with all commands and keys registered.
     ///
     /// # Panics
     /// Panics if two built-in commands share an id or two built-in key bindings conflict. Both
     /// are programming errors caught by the tests.
-    pub fn new() -> Self {
+    pub fn with_config(config: Config) -> Self {
         let mut app = Self {
+            config,
             mode: Mode::Normal,
             quit: false,
             commands: CommandRegistry::new(),
@@ -128,6 +139,11 @@ impl App {
         register_app_commands(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
         app
+    }
+
+    /// Returns the configuration the app was started with.
+    pub fn config(&self) -> &Config {
+        &self.config
     }
 
     /// Returns true once the application has been asked to quit.

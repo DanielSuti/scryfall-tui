@@ -2,3 +2,5 @@
 //! the results cache.
 
 pub mod command;
+pub mod config;
+pub mod paths;
