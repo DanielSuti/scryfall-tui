@@ -16,6 +16,8 @@ use crate::tui::layout::{
     SEARCH_BAR_SCOPE, SPLIT_SCOPE, ScreenAreas, panel_block,
 };
 use crate::tui::main_panel::{Back, MainView};
+use crate::tui::picker::keymaps_picker::keymaps_picker;
+use crate::tui::picker::picker::{Picker, PickerOutcome};
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::{Direction, Pane, find};
 use crate::tui::widgets::query_input::QueryInput;
@@ -55,6 +57,8 @@ pub const RUN_PANE_SEARCH: CommandId = CommandId("pane.search.run");
 pub const NEXT_MATCH: CommandId = CommandId("pane.search.next");
 /// Jumps to the previous match of the last `/` search.
 pub const PREVIOUS_MATCH: CommandId = CommandId("pane.search.previous");
+/// Opens the keymaps picker.
+pub const KEYMAPS: CommandId = CommandId("keymaps.picker");
 
 /// An input to the application, from the terminal, a timer or a background task.
 #[derive(Debug, Clone)]
@@ -86,6 +90,7 @@ pub struct App {
     prompt: Option<QueryInput>,
     last_pattern: Option<String>,
     message: Option<StatusMessage>,
+    picker: Option<Picker<CommandId>>,
 }
 
 impl Default for App {
@@ -118,6 +123,7 @@ impl App {
             prompt: None,
             last_pattern: None,
             message: None,
+            picker: None,
         };
         register_app_commands(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
@@ -288,6 +294,17 @@ impl App {
             return;
         };
         self.message = None;
+        if let Some(picker) = self.picker.as_mut() {
+            match picker.handle_key(event) {
+                PickerOutcome::Open => {}
+                PickerOutcome::Cancelled => self.close_picker(),
+                PickerOutcome::Selected(id) => {
+                    self.close_picker();
+                    self.run_command(id);
+                }
+            }
+            return;
+        }
         let scopes = self.active_scopes();
         match self.dispatcher.feed(&self.keymap, self.mode, &scopes, key) {
             Dispatch::Matched(id) => {
@@ -338,6 +355,21 @@ impl App {
         self.focused_pane()
             .map(|(pane, viewport)| pane.apply_motion(motion, viewport))
             .unwrap_or_default()
+    }
+
+    fn open_keymaps_picker(&mut self) {
+        self.picker = Some(keymaps_picker(&self.commands, &self.keymap));
+        self.enter_insert_mode();
+    }
+
+    fn close_picker(&mut self) {
+        self.picker = None;
+        self.mode = Mode::Normal;
+    }
+
+    /// Returns the open picker, if any.
+    pub fn picker(&self) -> Option<&Picker<CommandId>> {
+        self.picker.as_ref()
     }
 
     fn open_prompt(&mut self) {
@@ -443,6 +475,9 @@ impl App {
                     .hints(&hints),
                 areas.status,
             );
+        }
+        if let Some(picker) = &self.picker {
+            picker.render(frame, frame.area());
         }
         let entries = self.which_key_entries();
         if !entries.is_empty() {
@@ -620,6 +655,17 @@ fn register_app_commands(
                     app.set_focus(Panel::Main);
                 }
             },
+        ),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["<leader>sk"],
+        command(
+            KEYMAPS,
+            global,
+            "List every key and command",
+            None,
+            App::open_keymaps_picker,
         ),
     )?;
     register_main_panel_commands(&mut reg)?;
@@ -887,7 +933,12 @@ mod tests {
             })
             .collect();
         assert_eq!(listed, expected);
-        assert_eq!(listed.len(), 2);
+        for test_key in ["ab", "c"] {
+            assert!(
+                listed.iter().any(|(keys, _)| keys == test_key),
+                "{listed:?}"
+            );
+        }
     }
 
     #[tokio::test(start_paused = true)]
@@ -1100,6 +1151,40 @@ mod tests {
         assert_eq!(app.results.cursor(), 29);
         press(&mut app, "gg");
         assert_eq!(app.results.cursor(), 0);
+    }
+
+    #[test]
+    fn keymaps_picker_lists_every_command_and_runs_the_choice() {
+        let mut app = sized(112, 20);
+        press(&mut app, "<leader>sk");
+        let picker = app.picker().expect("picker is open");
+        let labels = picker.matching_labels();
+        assert_eq!(labels.len(), app.commands().iter().count());
+        for (label, command) in labels.iter().zip(app.commands().iter()) {
+            assert!(label.ends_with(command.description), "{label}");
+            for binding in app.keymap().bindings_for(command.id) {
+                assert!(label.contains(&binding.sequence.to_string()), "{label}");
+            }
+        }
+        type_text(&mut app, "focus history");
+        assert!(
+            app.picker()
+                .unwrap()
+                .selected_label()
+                .unwrap()
+                .contains("Focus the history")
+        );
+        app.handle_event(key(KeyCode::Enter));
+        assert!(app.picker().is_none());
+        assert_eq!(app.focus(), Panel::History);
+        assert_eq!(app.mode(), Mode::Normal);
+    }
+
+    #[test]
+    fn renders_keymaps_picker() {
+        let mut app = sized(112, 24);
+        press(&mut app, "<leader>sk");
+        insta::assert_snapshot!(render(&app));
     }
 
     #[test]

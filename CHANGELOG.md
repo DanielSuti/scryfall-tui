@@ -21,3 +21,4 @@ All notable changes to this project are documented in this file, newest release 
 - Main panel states with `d` for the full detail, `<CR>` for the split and `q` to step back, quitting only from the results. Each state has its own key scope and hints.
 - `/`, `n` and `N` search the text of the focused panel with smart case and wrap around, and the vim motions move the focused list.
 - Fuzzy picker popup that filters labelled items as you type, moves with `<C-j>`/`<C-k>` and chooses with `<Enter>`.
+- Keymaps picker on `<leader>sk` listing every command with its keys. Choosing one runs it.
