@@ -1,10 +1,14 @@
 ---
 source: src/tui/app.rs
-expression: terminal.backend()
+expression: render(&app)
 ---
-"                              "
-"                 ╭───────────╮"
-"                 │ ab First  │"
-"                 │ c  Second │"
-"                 ╰───────────╯"
-" NORMAL                       "
+"╭ [1] Search ──────────────────────────╮"
+"│                                      │"
+"╰──────────────────────────────────────╯"
+"┏ [3] Results ━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+"┃                                      ┃"
+"┃                          ╭───────────╮"
+"┃                          │ ab First  │"
+"┃                          │ c  Second │"
+"┗━━━━━━━━━━━━━━━━━━━━━━━━━━╰───────────╯"
+" NORMAL  │ [3] Results                  "

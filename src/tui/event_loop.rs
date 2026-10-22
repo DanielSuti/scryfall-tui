@@ -16,12 +16,17 @@ use crate::tui::app::{App, AppEvent};
 /// Returns an error when drawing fails or the terminal event stream fails or ends.
 pub async fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
     let mut terminal_events = EventStream::new();
+    let size = terminal.size()?;
+    app.handle_event(AppEvent::Resize(size.width, size.height));
     while !app.should_quit() {
         terminal.draw(|frame| app.render(frame))?;
         let deadline = app.next_deadline();
         tokio::select! {
             event = terminal_events.next() => match event {
                 Some(Ok(Event::Key(key))) => app.handle_event(AppEvent::Key(key)),
+                Some(Ok(Event::Resize(width, height))) => {
+                    app.handle_event(AppEvent::Resize(width, height));
+                }
                 Some(Ok(_)) => {}
                 Some(Err(err)) => return Err(err),
                 None => {

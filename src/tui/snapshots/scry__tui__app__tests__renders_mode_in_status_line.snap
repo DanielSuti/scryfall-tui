@@ -1,8 +1,0 @@
----
-source: src/tui/app.rs
-expression: terminal.backend()
----
-"                              "
-"                              "
-"                              "
-" NORMAL                       "

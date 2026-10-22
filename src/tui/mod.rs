@@ -3,6 +3,7 @@
 pub mod app;
 pub mod event_loop;
 pub mod keymap;
+pub mod layout;
 pub mod terminal;
 pub mod text;
 pub mod widgets;

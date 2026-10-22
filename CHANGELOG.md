@@ -17,3 +17,4 @@ All notable changes to this project are documented in this file, newest release 
 - Which-key popup listing the keys that complete a pending sequence, shown after a short delay.
 - Status line with sections, messages and key hints for the focused panel, taken from the command registry and cut with `...` when they don't fit.
 - Scrollable list widget with `j`/`k`, `gg`/`G` and `<C-d>`/`<C-u>` motions, and a signal when moving past the last row.
+- Three-panel layout: search bar, history at a quarter of the width and main panel, with numbered titles and `1`/`2`/`3`/`0` focus jumps. Below 100 columns the history hides and `2` opens it as an overlay.

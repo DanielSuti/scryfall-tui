@@ -2,7 +2,8 @@
 
 use crossterm::event::{KeyEvent, KeyEventKind};
 use ratatui::Frame;
-use ratatui::layout::{Constraint, Layout};
+use ratatui::layout::Rect;
+use ratatui::widgets::Widget;
 use tokio::time::Instant;
 
 use crate::app::command::{Command, CommandId, CommandRegistry, Scope};
@@ -10,6 +11,9 @@ use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
 use crate::tui::keymap::sequence::Key;
+use crate::tui::layout::{
+    DETAIL_SCOPE, HISTORY_SCOPE, Panel, RESULTS_SCOPE, SEARCH_BAR_SCOPE, ScreenAreas, panel_block,
+};
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::StatusLine;
 use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup};
@@ -21,6 +25,16 @@ pub const LEADER: Key = Key::char(' ');
 pub const QUIT: CommandId = CommandId("app.quit");
 /// Leaves insert mode.
 pub const NORMAL_MODE: CommandId = CommandId("mode.normal");
+/// Focuses the search bar in insert mode, keeping the query.
+pub const FOCUS_SEARCH_BAR: CommandId = CommandId("focus.search_bar");
+/// Focuses the history, as an overlay when the panel is hidden.
+pub const FOCUS_HISTORY: CommandId = CommandId("focus.history");
+/// Focuses the main panel.
+pub const FOCUS_MAIN: CommandId = CommandId("focus.main");
+/// Focuses the detail of the split.
+pub const FOCUS_DETAIL: CommandId = CommandId("focus.detail");
+/// Closes the history overlay.
+pub const CLOSE_OVERLAY: CommandId = CommandId("history.close_overlay");
 
 /// An input to the application, from the terminal, a timer or a background task.
 #[derive(Debug, Clone)]
@@ -29,6 +43,8 @@ pub enum AppEvent {
     Key(KeyEvent),
     /// A deadline returned by [`App::next_deadline`] has passed.
     Tick,
+    /// The terminal now has this many columns and rows.
+    Resize(u16, u16),
 }
 
 /// The whole application state. Rendering is a pure function of it.
@@ -41,6 +57,9 @@ pub struct App {
     dispatcher: Dispatcher,
     input: QueryInput,
     which_key: WhichKey,
+    area: Rect,
+    focus: Panel,
+    history_overlay: bool,
 }
 
 impl Default for App {
@@ -64,6 +83,9 @@ impl App {
             dispatcher: Dispatcher::new(),
             input: QueryInput::new(),
             which_key: WhichKey::default(),
+            area: Rect::default(),
+            focus: Panel::Main,
+            history_overlay: false,
         };
         register_app_commands(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
@@ -95,7 +117,29 @@ impl App {
         match event {
             AppEvent::Key(key) => self.handle_key(key),
             AppEvent::Tick => self.which_key.tick(Instant::now()),
+            AppEvent::Resize(width, height) => self.area = Rect::new(0, 0, width, height),
         }
+    }
+
+    /// Returns the focused panel.
+    pub fn focus(&self) -> Panel {
+        self.focus
+    }
+
+    /// Returns the screen areas for the last known terminal size.
+    pub fn areas(&self) -> ScreenAreas {
+        self.areas_for(self.area)
+    }
+
+    fn areas_for(&self, area: Rect) -> ScreenAreas {
+        ScreenAreas::compute(area, false, self.history_overlay)
+    }
+
+    fn set_focus(&mut self, panel: Panel) {
+        if panel != Panel::History {
+            self.history_overlay = false;
+        }
+        self.focus = panel;
     }
 
     /// Returns when the app next needs an [`AppEvent::Tick`], or `None` when it waits only
@@ -132,7 +176,12 @@ impl App {
 
     /// Returns the scope of the focused panel.
     pub fn focused_scope(&self) -> Scope {
-        Scope::GLOBAL
+        match self.focus {
+            Panel::SearchBar => SEARCH_BAR_SCOPE,
+            Panel::History => HISTORY_SCOPE,
+            Panel::Main => RESULTS_SCOPE,
+            Panel::Detail => DETAIL_SCOPE,
+        }
     }
 
     fn active_scopes(&self) -> Vec<Scope> {
@@ -197,14 +246,66 @@ impl App {
 
     /// Draws the whole screen.
     pub fn render(&self, frame: &mut Frame) {
-        let [body, status] =
-            Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
+        let areas = self.areas_for(frame.area());
+        let focused = |panel| self.focus == panel;
+
+        let block = panel_block(self.title(Panel::SearchBar), focused(Panel::SearchBar));
+        let inner = block.inner(areas.search);
+        frame.render_widget(block, areas.search);
+        self.input.render(
+            frame,
+            inner,
+            focused(Panel::SearchBar) && self.mode == Mode::Insert,
+        );
+
+        if let Some(history) = areas.history {
+            frame.render_widget(
+                panel_block(self.title(Panel::History), focused(Panel::History)),
+                history,
+            );
+        }
+        frame.render_widget(
+            panel_block(self.title(Panel::Main), focused(Panel::Main)),
+            areas.main,
+        );
+        if let Some(detail) = areas.detail {
+            frame.render_widget(
+                panel_block(self.title(Panel::Detail), focused(Panel::Detail)),
+                detail,
+            );
+        }
+        if let Some(overlay) = areas.overlay {
+            frame.render_widget(ratatui::widgets::Clear, overlay);
+            frame.render_widget(
+                panel_block(self.title(Panel::History), focused(Panel::History)),
+                overlay,
+            );
+        }
+
         let hints = self.hints_for(self.focused_scope());
-        frame.render_widget(StatusLine::new(self.mode).hints(&hints), status);
+        let panel = self.title(self.focus);
+        frame.render_widget(
+            StatusLine::new(self.mode).section(panel).hints(&hints),
+            areas.status,
+        );
         let entries = self.which_key_entries();
         if !entries.is_empty() {
-            frame.render_widget(WhichKeyPopup::new(&entries), body);
+            let body = Rect {
+                height: areas.status.y.saturating_sub(areas.search.y),
+                ..frame.area()
+            };
+            WhichKeyPopup::new(&entries).render(body, frame.buffer_mut());
         }
+    }
+
+    fn title(&self, panel: Panel) -> String {
+        let name = match panel {
+            Panel::SearchBar => "Search",
+            Panel::History => "History",
+            Panel::Main => "Results",
+            Panel::Detail => "Detail",
+        };
+        format!("[{}] {name}", panel.jump_key())
     }
 }
 
@@ -213,29 +314,132 @@ fn hint_keys(notation: &str) -> String {
     notation.replace("<CR>", "⏎")
 }
 
+/// An error raised while registering built-in commands and keys.
+#[derive(Debug, thiserror::Error)]
+pub enum RegistrationError {
+    /// A command id is registered twice.
+    #[error(transparent)]
+    Command(#[from] crate::app::command::CommandError),
+    /// A key binding is invalid or conflicts with another.
+    #[error(transparent)]
+    Keymap(#[from] crate::tui::keymap::bindings::KeymapError),
+}
+
+/// Registers commands and binds their keys in one step.
+pub struct Registrar<'a> {
+    commands: &'a mut CommandRegistry<App>,
+    keymap: &'a mut Keymap,
+}
+
+impl Registrar<'_> {
+    /// Registers a command and binds each of `keys` to it in `mode`, in the command's scope.
+    ///
+    /// # Errors
+    /// Returns an error when the id is already registered or a key binding is invalid or
+    /// conflicts with another.
+    pub fn add(
+        &mut self,
+        mode: Mode,
+        keys: &[&str],
+        command: Command<App>,
+    ) -> Result<(), RegistrationError> {
+        let (id, scope) = (command.id, command.scope);
+        self.commands.register(command)?;
+        for notation in keys {
+            self.keymap.bind(mode, scope, notation, id)?;
+        }
+        Ok(())
+    }
+}
+
+fn command(
+    id: CommandId,
+    scope: Scope,
+    description: &'static str,
+    hint: Option<&'static str>,
+    run: fn(&mut App),
+) -> Command<App> {
+    Command {
+        id,
+        description,
+        scope,
+        hint,
+        run,
+    }
+}
+
 fn register_app_commands(
     commands: &mut CommandRegistry<App>,
     keymap: &mut Keymap,
-) -> Result<(), Box<dyn std::error::Error>> {
-    commands.register(Command {
-        id: QUIT,
-        description: "Quit scry",
-        scope: Scope::GLOBAL,
-        hint: None,
-        run: |app| app.quit = true,
-    })?;
-    commands.register(Command {
-        id: NORMAL_MODE,
-        description: "Back to normal mode",
-        scope: Scope::GLOBAL,
-        hint: None,
-        run: |app| {
+) -> Result<(), RegistrationError> {
+    let mut reg = Registrar { commands, keymap };
+    let global = Scope::GLOBAL;
+    reg.add(
+        Mode::Normal,
+        &["Q"],
+        command(QUIT, global, "Quit scry", None, |app| app.quit = true),
+    )?;
+    reg.add(
+        Mode::Insert,
+        &["<Esc>"],
+        command(NORMAL_MODE, global, "Back to normal mode", None, |app| {
             app.mode = Mode::Normal;
             app.dispatcher.reset();
-        },
-    })?;
-    keymap.bind(Mode::Normal, Scope::GLOBAL, "Q", QUIT)?;
-    keymap.bind(Mode::Insert, Scope::GLOBAL, "<Esc>", NORMAL_MODE)?;
+        }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["1"],
+        command(
+            FOCUS_SEARCH_BAR,
+            global,
+            "Focus the search bar",
+            None,
+            |app| {
+                app.set_focus(Panel::SearchBar);
+                app.enter_insert_mode();
+            },
+        ),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["2"],
+        command(FOCUS_HISTORY, global, "Focus the history", None, |app| {
+            app.set_focus(Panel::History);
+            app.history_overlay = app.areas_for(app.area).history.is_none();
+        }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["3"],
+        command(FOCUS_MAIN, global, "Focus the main panel", None, |app| {
+            app.set_focus(Panel::Main);
+        }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["0"],
+        command(FOCUS_DETAIL, global, "Focus the detail", None, |app| {
+            if app.areas().detail.is_some() {
+                app.set_focus(Panel::Detail);
+            }
+        }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["<Esc>"],
+        command(
+            CLOSE_OVERLAY,
+            HISTORY_SCOPE,
+            "Close the history overlay",
+            None,
+            |app| {
+                if app.history_overlay {
+                    app.set_focus(Panel::Main);
+                }
+            },
+        ),
+    )?;
     Ok(())
 }
 
@@ -374,16 +578,78 @@ mod tests {
         app.handle_event(key(KeyCode::Char(' ')));
         tokio::time::advance(crate::tui::widgets::which_key::WHICH_KEY_DELAY).await;
         app.handle_event(AppEvent::Tick);
-        let mut terminal = Terminal::new(TestBackend::new(30, 6)).unwrap();
+        app.handle_event(AppEvent::Resize(40, 10));
+        insta::assert_snapshot!(render(&app));
+    }
+
+    fn sized(width: u16, height: u16) -> App {
+        let mut app = App::new();
+        app.handle_event(AppEvent::Resize(width, height));
+        app
+    }
+
+    fn render(app: &App) -> TestBackend {
+        let mut terminal =
+            Terminal::new(TestBackend::new(app.area.width, app.area.height)).unwrap();
         terminal.draw(|frame| app.render(frame)).unwrap();
-        insta::assert_snapshot!(terminal.backend());
+        terminal.backend().clone()
     }
 
     #[test]
-    fn renders_mode_in_status_line() {
-        let app = App::new();
-        let mut terminal = Terminal::new(TestBackend::new(30, 4)).unwrap();
-        terminal.draw(|frame| app.render(frame)).unwrap();
-        insta::assert_snapshot!(terminal.backend());
+    fn number_keys_jump_between_panels() {
+        let mut app = sized(112, 12);
+        assert_eq!(app.focus(), Panel::Main);
+        type_text(&mut app, "2");
+        assert_eq!(app.focus(), Panel::History);
+        assert_eq!(app.focused_scope(), HISTORY_SCOPE);
+        type_text(&mut app, "0");
+        assert_eq!(app.focus(), Panel::History, "0 is a no-op without a split");
+        type_text(&mut app, "3");
+        assert_eq!(app.focus(), Panel::Main);
+        type_text(&mut app, "1");
+        assert_eq!(app.focus(), Panel::SearchBar);
+        assert_eq!(app.mode(), Mode::Insert);
+        type_text(&mut app, "2");
+        assert_eq!(
+            app.focus(),
+            Panel::SearchBar,
+            "digits are text in insert mode"
+        );
+        assert_eq!(app.input.value(), "2");
+    }
+
+    #[test]
+    fn history_opens_as_overlay_on_narrow_terminals() {
+        let mut app = sized(99, 12);
+        type_text(&mut app, "2");
+        assert!(app.areas().overlay.is_some());
+        app.handle_event(key(KeyCode::Esc));
+        assert_eq!(app.focus(), Panel::Main);
+        assert!(app.areas().overlay.is_none());
+        type_text(&mut app, "23");
+        assert!(
+            app.areas().overlay.is_none(),
+            "leaving the history closes the overlay"
+        );
+        let mut wide = sized(100, 12);
+        type_text(&mut wide, "2");
+        assert!(wide.areas().overlay.is_none());
+    }
+
+    #[test]
+    fn renders_layout_at_the_threshold() {
+        insta::assert_snapshot!(render(&sized(100, 10)));
+    }
+
+    #[test]
+    fn renders_layout_below_the_threshold() {
+        insta::assert_snapshot!(render(&sized(99, 10)));
+    }
+
+    #[test]
+    fn renders_history_overlay() {
+        let mut app = sized(99, 10);
+        type_text(&mut app, "2");
+        insta::assert_snapshot!(render(&app));
     }
 }
