@@ -130,8 +130,38 @@ impl App {
         }
     }
 
+    /// Returns the scope of the focused panel.
+    pub fn focused_scope(&self) -> Scope {
+        Scope::GLOBAL
+    }
+
     fn active_scopes(&self) -> Vec<Scope> {
-        vec![Scope::GLOBAL]
+        let focused = self.focused_scope();
+        if focused == Scope::GLOBAL {
+            vec![Scope::GLOBAL]
+        } else {
+            vec![focused, Scope::GLOBAL]
+        }
+    }
+
+    /// Returns the status-line hints of `scope`: each command of that scope with a hint label,
+    /// in registration order, formatted as its first normal-mode key and the label.
+    pub fn hints_for(&self, scope: Scope) -> Vec<String> {
+        self.commands
+            .iter()
+            .filter(|command| command.scope == scope)
+            .filter_map(|command| {
+                let hint = command.hint?;
+                let binding = self
+                    .keymap
+                    .bindings_for(command.id)
+                    .find(|b| b.mode == Mode::Normal)?;
+                Some(format!(
+                    "{} {hint}",
+                    hint_keys(&binding.sequence.to_string())
+                ))
+            })
+            .collect()
     }
 
     fn handle_key(&mut self, event: KeyEvent) {
@@ -169,12 +199,18 @@ impl App {
     pub fn render(&self, frame: &mut Frame) {
         let [body, status] =
             Layout::vertical([Constraint::Min(0), Constraint::Length(1)]).areas(frame.area());
-        frame.render_widget(StatusLine::new(self.mode), status);
+        let hints = self.hints_for(self.focused_scope());
+        frame.render_widget(StatusLine::new(self.mode).hints(&hints), status);
         let entries = self.which_key_entries();
         if !entries.is_empty() {
             frame.render_widget(WhichKeyPopup::new(&entries), body);
         }
     }
+}
+
+/// Shortens key notation for the hint line: `<CR>` becomes `⏎`.
+fn hint_keys(notation: &str) -> String {
+    notation.replace("<CR>", "⏎")
 }
 
 fn register_app_commands(
@@ -245,18 +281,43 @@ mod tests {
     }
 
     fn test_command(app: &mut App, id: &'static str, notation: &str, description: &'static str) {
+        scoped_command(app, Scope::GLOBAL, id, notation, description, None);
+    }
+
+    fn scoped_command(
+        app: &mut App,
+        scope: Scope,
+        id: &'static str,
+        notation: &str,
+        description: &'static str,
+        hint: Option<&'static str>,
+    ) {
         app.commands
             .register(Command {
                 id: CommandId(id),
                 description,
-                scope: Scope::GLOBAL,
-                hint: None,
+                scope,
+                hint,
                 run: |_| {},
             })
             .unwrap();
         app.keymap
-            .bind(Mode::Normal, Scope::GLOBAL, notation, CommandId(id))
+            .bind(Mode::Normal, scope, notation, CommandId(id))
             .unwrap();
+    }
+
+    #[test]
+    fn hints_come_from_the_registry_of_the_scope() {
+        let mut app = App::new();
+        let results = Scope("results");
+        let history = Scope("history");
+        scoped_command(&mut app, results, "r.detail", "d", "Detail", Some("detail"));
+        scoped_command(&mut app, results, "r.split", "<CR>", "Split", Some("split"));
+        scoped_command(&mut app, results, "r.top", "gg", "Top", None);
+        scoped_command(&mut app, history, "h.edit", "e", "Edit", Some("edit"));
+        assert_eq!(app.hints_for(results), ["d detail", "⏎ split"]);
+        assert_eq!(app.hints_for(history), ["e edit"]);
+        assert!(app.hints_for(Scope::GLOBAL).is_empty());
     }
 
     fn app_with_leader_commands() -> App {

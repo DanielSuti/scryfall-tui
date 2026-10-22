@@ -15,3 +15,4 @@ All notable changes to this project are documented in this file, newest release 
 - Keymap with bindings per mode and scope, rejecting prefix conflicts, and a dispatcher that turns key presses into commands with the focused scope taking precedence.
 - Normal and insert modes. Keys are dispatched through the keymap with `<Space>` as leader, insert mode sends unbound keys to the text input, and `<Esc>` returns to normal mode.
 - Which-key popup listing the keys that complete a pending sequence, shown after a short delay.
+- Status line with sections, messages and key hints for the focused panel, taken from the command registry and cut with `...` when they don't fit.
