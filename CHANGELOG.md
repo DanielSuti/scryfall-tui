@@ -12,3 +12,4 @@ All notable changes to this project are documented in this file, newest release 
 - Display-width truncation helper that marks cut text with `...`.
 - Command registry: named commands with a description, scope, optional status-line hint and handler.
 - Key notation parser for sequences such as `<leader>ss`, `gg` and `<C-d>`, matched against normalised terminal key events.
+- Keymap with bindings per mode and scope, rejecting prefix conflicts, and a dispatcher that turns key presses into commands with the focused scope taking precedence.

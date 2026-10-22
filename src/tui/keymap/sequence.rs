@@ -170,6 +170,12 @@ impl KeySequence {
         &self.0
     }
 
+    /// Returns the tokens after the first `skip`, or `None` when nothing remains.
+    pub fn tail(&self, skip: usize) -> Option<KeySequence> {
+        let rest = self.0.get(skip..)?;
+        (!rest.is_empty()).then(|| KeySequence(rest.to_vec()))
+    }
+
     /// Returns the concrete keys, with every [`KeyToken::Leader`] replaced by `leader`.
     pub fn resolve(&self, leader: Key) -> Vec<Key> {
         self.0
