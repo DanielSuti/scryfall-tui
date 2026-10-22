@@ -582,22 +582,13 @@ impl App {
         } else {
             let hints = self.hints_for(self.focused_scope());
             let mut status = StatusLine::new(self.mode).section(self.title(self.focus));
-            let warnings = self
-                .format_warning
-                .as_ref()
-                .map(StatusMessage::error)
-                .or_else(|| {
-                    self.displayed_results().and_then(|results| {
-                        (!results.warnings().is_empty())
-                            .then(|| StatusMessage::info(results.warnings().join(" ")))
-                    })
-                });
+            let standing = self.standing_message();
             if let Some(results) = self.displayed_results() {
                 status = status.section(load_summary(results));
             }
             frame.render_widget(
                 status
-                    .message(self.message.as_ref().or(warnings.as_ref()))
+                    .message(self.message.as_ref().or(standing.as_ref()))
                     .hints(&hints),
                 areas.status,
             );
@@ -621,6 +612,19 @@ impl App {
         let inner = block.inner(area);
         frame.render_widget(block, area);
         self.history_view.render(inner, frame.buffer_mut(), focused);
+    }
+
+    /// The message shown while no event message is set: a problem in `detail.formats`, then
+    /// the failure of the displayed search, then Scryfall's warnings about its query.
+    fn standing_message(&self) -> Option<StatusMessage> {
+        if let Some(warning) = &self.format_warning {
+            return Some(StatusMessage::error(warning.clone()));
+        }
+        let results = self.displayed_results()?;
+        if let crate::domain::search_results::LoadState::Failed(reason) = results.state() {
+            return Some(StatusMessage::error(reason.clone()));
+        }
+        (!results.warnings().is_empty()).then(|| StatusMessage::info(results.warnings().join(" ")))
     }
 
     fn title(&self, panel: Panel) -> String {

@@ -127,7 +127,7 @@ impl App {
                 if displayed {
                     self.message = Some(StatusMessage::info(format!(
                         "Scryfall rate limit reached, retrying in {} s",
-                        pause.as_secs()
+                        pause.as_secs_f64().ceil()
                     )));
                 }
             }

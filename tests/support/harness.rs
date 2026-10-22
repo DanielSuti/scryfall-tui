@@ -47,8 +47,18 @@ impl Harness {
     pub async fn start_with_config(cards: Vec<Value>, page_size: usize, config: Config) -> Self {
         let (server, fake) = FakeScryfall::start(cards).await;
         fake.set_page_size(page_size);
-        let client =
-            ScryfallClient::with_base_url(server.uri().parse().unwrap(), NO_LIMITS).unwrap();
+        let base_url = server.uri();
+        Self::assemble(server, fake, &base_url, config)
+    }
+
+    /// Starts an app whose search source is an address nothing listens on.
+    pub async fn start_unreachable() -> Self {
+        let (server, fake) = FakeScryfall::start(Vec::new()).await;
+        Self::assemble(server, fake, "http://127.0.0.1:9", Config::default())
+    }
+
+    fn assemble(server: MockServer, fake: FakeScryfall, base_url: &str, config: Config) -> Self {
+        let client = ScryfallClient::with_base_url(base_url.parse().unwrap(), NO_LIMITS).unwrap();
         let (events, background) = tokio::sync::mpsc::unbounded_channel();
         let services = Services {
             search: Arc::new(ApiSearch::new(client)),
