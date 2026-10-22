@@ -7,7 +7,7 @@ A TUI interface for the Magic The Gathering database https://scryfall.com/
 cargo run --release
 ```
 
-`scry` opens a terminal UI. Press `<Space>ss`, type a [Scryfall query](https://scryfall.com/docs/syntax) and press `<Enter>`. Move with `j`/`k` or the arrow keys. Press `<Space>sk` to list every key, and `Q` to quit.
+`scry` opens a terminal UI. Press `<Space>ss`, type a [Scryfall query](https://scryfall.com/docs/syntax) and press `<Enter>`. Move with `j`/`k` or the arrow keys, and press `s` on the results to sort them by name or release date. Press `<Space>sk` to list every key, and `Q` to quit.
 
 The layout and all keys are described in [docs/ui-layout.md](docs/ui-layout.md).
 

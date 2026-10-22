@@ -6,6 +6,7 @@ use ratatui::text::Line;
 
 use crate::domain::card::Card;
 use crate::domain::search_results::{LoadState, SearchResults};
+use crate::search::SearchRequest;
 use crate::tui::text::{display_width, truncate};
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::{Navigable, Searchable};
@@ -40,7 +41,7 @@ impl Row {
 /// The rows of the displayed search, with the cursor.
 #[derive(Debug, Clone, Default)]
 pub struct ResultsView {
-    query: Option<String>,
+    request: Option<SearchRequest>,
     rows: Vec<Row>,
     list: ItemList,
     notice: Option<String>,
@@ -52,11 +53,12 @@ impl ResultsView {
         Self::default()
     }
 
-    /// Shows `results`. The cursor moves to the top when the query differs from the one shown,
-    /// and keeps its row when more pages of the same query arrive.
-    pub fn show(&mut self, results: &SearchResults) {
-        if self.query.as_deref() != Some(results.query()) {
-            self.query = Some(results.query().to_owned());
+    /// Shows `results`, the results of `request`. The cursor moves to the top when the
+    /// request differs from the one shown, and keeps its row when more pages of the same
+    /// request arrive.
+    pub fn show(&mut self, request: &SearchRequest, results: &SearchResults) {
+        if self.request.as_ref() != Some(request) {
+            self.request = Some(request.clone());
             self.list = ItemList::new();
         }
         self.rows = results.cards().iter().map(Row::of).collect();
@@ -65,9 +67,9 @@ impl ResultsView {
         self.notice = results.notice().map(str::to_owned);
     }
 
-    /// Returns the query shown, or `None` before the first search.
-    pub fn query(&self) -> Option<&str> {
-        self.query.as_deref()
+    /// Returns the request shown, or `None` before the first search.
+    pub fn request(&self) -> Option<&SearchRequest> {
+        self.request.as_ref()
     }
 
     /// Returns the list state.

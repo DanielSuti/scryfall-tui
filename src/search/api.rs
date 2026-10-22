@@ -7,7 +7,7 @@ use crate::scryfall::client::ScryfallClient;
 use crate::scryfall::error::ScryfallError;
 use crate::scryfall::parse::card_from_wire;
 use crate::scryfall::wire::WireCardList;
-use crate::search::{BoxFuture, CardSearch, SearchError};
+use crate::search::{BoxFuture, CardSearch, SearchError, SearchRequest, SortOrder};
 
 /// Scryfall's error code for a search that matches nothing.
 const NOT_FOUND: &str = "not_found";
@@ -59,9 +59,24 @@ fn page_from_wire(list: WireCardList) -> Result<SearchPage, SearchError> {
     })
 }
 
+/// Returns Scryfall's `order` value for `order`. See
+/// <https://scryfall.com/docs/api/cards/search>.
+fn scryfall_order(order: SortOrder) -> &'static str {
+    match order {
+        SortOrder::Name => "name",
+        SortOrder::Released => "released",
+    }
+}
+
 impl CardSearch for ApiSearch {
-    fn first_page<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<SearchPage, SearchError>> {
-        Box::pin(self.fetch(self.client.search_url(query)))
+    fn first_page<'a>(
+        &'a self,
+        request: &'a SearchRequest,
+    ) -> BoxFuture<'a, Result<SearchPage, SearchError>> {
+        let url = self
+            .client
+            .search_url(&request.query, scryfall_order(request.order));
+        Box::pin(self.fetch(url))
     }
 
     fn next_page<'a>(

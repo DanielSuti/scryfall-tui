@@ -93,11 +93,16 @@ impl ScryfallClient {
         })
     }
 
-    /// Returns the URL of the first search page for `query`. The query is sent unchanged.
-    pub fn search_url(&self, query: &str) -> Url {
+    /// Returns the URL of the first search page for `query`, sorted by Scryfall's `order`
+    /// value, such as `name` or `released`. The query is sent unchanged, and the direction is
+    /// left to Scryfall's default.
+    pub fn search_url(&self, query: &str, order: &str) -> Url {
         let mut url = self.base_url.clone();
         url.set_path("/cards/search");
-        url.query_pairs_mut().clear().append_pair("q", query);
+        url.query_pairs_mut()
+            .clear()
+            .append_pair("q", query)
+            .append_pair("order", order);
         url
     }
 

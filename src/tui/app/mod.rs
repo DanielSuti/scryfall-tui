@@ -4,6 +4,7 @@ mod commands;
 mod history;
 pub mod registrar;
 mod search;
+mod sort;
 #[cfg(test)]
 mod tests;
 
@@ -23,7 +24,7 @@ use crate::app::history::History;
 use crate::app::results_cache::ResultsCache;
 use crate::app::selection::Selection;
 use crate::domain::search_results::{SearchPage, SearchResults};
-use crate::search::CardSearch;
+use crate::search::{CardSearch, SearchRequest, SortOrder};
 use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
@@ -74,8 +75,8 @@ pub enum AppEvent {
     Resize(u16, u16),
     /// Progress of the background search for `query`.
     Search {
-        /// The query the update belongs to.
-        query: String,
+        /// The request the update belongs to.
+        request: SearchRequest,
         /// What happened.
         update: SearchUpdate,
     },
@@ -122,10 +123,53 @@ pub struct App {
     history_view: HistoryView,
     cache: ResultsCache,
     batches_running: usize,
+    sort_order: SortOrder,
     prompt: Option<QueryInput>,
     last_pattern: Option<String>,
     message: Option<StatusMessage>,
-    picker: Option<Picker<CommandId>>,
+    picker: Option<OpenPicker>,
+}
+
+/// The picker on screen and what choosing an item does.
+#[derive(Debug)]
+pub enum OpenPicker {
+    /// Runs the chosen command.
+    Keymaps(Picker<CommandId>),
+    /// Sorts the results by the chosen order.
+    Sort(Picker<SortOrder>),
+}
+
+impl OpenPicker {
+    /// Returns the labels of the matching items, best match first.
+    pub fn labels(&self) -> Vec<&str> {
+        match self {
+            OpenPicker::Keymaps(picker) => picker.matching_labels(),
+            OpenPicker::Sort(picker) => picker.matching_labels(),
+        }
+    }
+
+    /// Returns the label under the cursor, or `None` when nothing matches.
+    pub fn selected_label(&self) -> Option<&str> {
+        match self {
+            OpenPicker::Keymaps(picker) => picker.selected_label(),
+            OpenPicker::Sort(picker) => picker.selected_label(),
+        }
+    }
+
+    fn render(&self, frame: &mut Frame, area: Rect) {
+        match self {
+            OpenPicker::Keymaps(picker) => picker.render(frame, area),
+            OpenPicker::Sort(picker) => picker.render(frame, area),
+        }
+    }
+}
+
+/// What a key press in a picker asks for.
+enum PickerAction {
+    Stay,
+    Close,
+    RunCommand(CommandId),
+    Sort(SortOrder),
 }
 
 impl Default for App {
@@ -174,6 +218,7 @@ impl App {
             history_view: HistoryView::new(),
             cache: ResultsCache::new(),
             batches_running: 0,
+            sort_order: SortOrder::default(),
             prompt: None,
             last_pattern: None,
             message: None,
@@ -226,7 +271,7 @@ impl App {
 
     /// Returns the results shown in the main panel, or `None` before the first search.
     pub fn displayed_results(&self) -> Option<&SearchResults> {
-        self.cache.get(self.results.query()?)
+        self.cache.get(self.results.request()?)
     }
 
     /// Returns the index of the results row under the cursor.
@@ -266,7 +311,7 @@ impl App {
             AppEvent::Key(key) => self.handle_key(key),
             AppEvent::Tick => self.which_key.tick(Instant::now()),
             AppEvent::Resize(width, height) => self.area = Rect::new(0, 0, width, height),
-            AppEvent::Search { query, update } => self.handle_search_update(&query, update),
+            AppEvent::Search { request, update } => self.handle_search_update(&request, update),
         }
         self.sync_detail();
     }
@@ -446,12 +491,28 @@ impl App {
         };
         self.message = None;
         if let Some(picker) = self.picker.as_mut() {
-            match picker.handle_key(event) {
-                PickerOutcome::Open => {}
-                PickerOutcome::Cancelled => self.close_picker(),
-                PickerOutcome::Selected(id) => {
+            let action = match picker {
+                OpenPicker::Keymaps(picker) => match picker.handle_key(event) {
+                    PickerOutcome::Open => PickerAction::Stay,
+                    PickerOutcome::Cancelled => PickerAction::Close,
+                    PickerOutcome::Selected(id) => PickerAction::RunCommand(id),
+                },
+                OpenPicker::Sort(picker) => match picker.handle_key(event) {
+                    PickerOutcome::Open => PickerAction::Stay,
+                    PickerOutcome::Cancelled => PickerAction::Close,
+                    PickerOutcome::Selected(order) => PickerAction::Sort(order),
+                },
+            };
+            match action {
+                PickerAction::Stay => {}
+                PickerAction::Close => self.close_picker(),
+                PickerAction::RunCommand(id) => {
                     self.close_picker();
                     self.run_command(id);
+                }
+                PickerAction::Sort(order) => {
+                    self.close_picker();
+                    self.apply_sort(order);
                 }
             }
             return;
@@ -525,7 +586,7 @@ impl App {
     }
 
     /// Returns the open picker, if any.
-    pub fn picker(&self) -> Option<&Picker<CommandId>> {
+    pub fn picker(&self) -> Option<&OpenPicker> {
         self.picker.as_ref()
     }
 
@@ -585,6 +646,9 @@ impl App {
             let standing = self.standing_message();
             if let Some(results) = self.displayed_results() {
                 status = status.section(load_summary(results));
+                if let Some(request) = self.results.request() {
+                    status = status.section(request.order.summary());
+                }
             }
             frame.render_widget(
                 status

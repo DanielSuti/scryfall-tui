@@ -124,6 +124,7 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 | | `dd` | Delete the entry. |
 | Results | `j`/`k`, `gg`/`G`, `<C-d>`/`<C-u>`, or `↓`/`↑`, `Home`/`End`, `PageDown`/`PageUp` | Move. Reaching the last loaded row loads the next batch. |
 | | `d`, `<CR>`, `q` | As in the transition table. |
+| | `s` | Open the sort picker, also in the split. |
 | Full detail | `j`/`k` or `↓`/`↑` | Scroll. |
 | | `J`/`K` | Previous or next card. |
 | | `<CR>`, `q` | As in the transition table. |
@@ -134,6 +135,10 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 ## Truncation
 
 Text that does not fit its column ends in `...`. Anything after it on the same line, such as a history count, stays visible. One helper does this everywhere text is cut.
+
+## Sort picker
+
+`s` on the results opens a small floating picker with two orders: name (A → Z) and release date (newest first). The cursor starts on the order in use. Choosing an order runs the displayed query again with Scryfall's `order` parameter, so all matches are sorted, not only the loaded ones. The order stays for the rest of the session, shows in the status line as `by name` or `by release date`, and is not stored in the history.
 
 ## Panel contents
 

@@ -15,7 +15,7 @@ Ideas and planned work outside the current release. Nothing here is scheduled un
 - Card images through the kitty or sixel protocols.
 - `default_cards` printings for collecting and image previews.
 - Name autocomplete in the search bar.
-- Sort and unique options in search.
+- More sort orders and unique options in search.
 - Saved queries.
 - User-configurable keymap overrides.
 

@@ -3,8 +3,10 @@
 //! The fake holds a list of cards and answers `GET /cards/search` from it. It supports a
 //! documented subset of the query language: every whitespace-separated term must appear in
 //! the card name, ignoring case. A term containing `:` is ignored with a warning, as Scryfall
-//! warns about expressions it cannot use. Pages, totals, `next_page`, no-match errors and 429
-//! responses are all derived from the fake's configured state.
+//! warns about expressions it cannot use. Like Scryfall, results are sorted by name unless
+//! `order=released` asks for newest first; another `order` value is a 400 error. Pages, totals,
+//! `next_page`, no-match errors and 429 responses are all derived from the fake's configured
+//! state.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -63,6 +65,13 @@ pub fn card_named(name: &str) -> Value {
     let mut card = template_card();
     card["name"] = json!(name);
     card["id"] = json!(format!("id-{}", name.to_lowercase().replace(' ', "-")));
+    card
+}
+
+/// A card named `name` first released on `released_at`, an ISO date such as `2024-11-15`.
+pub fn card_released(name: &str, released_at: &str) -> Value {
+    let mut card = card_named(name);
+    card["released_at"] = json!(released_at);
     card
 }
 
@@ -179,14 +188,27 @@ impl Respond for FakeScryfall {
                 terms.push(term.to_lowercase());
             }
         }
-        let matching: Vec<&Value> = state
+        let order = param("order").unwrap_or_else(|| "name".to_owned());
+        let text = |card: &Value, key: &str| card[key].as_str().unwrap_or_default().to_owned();
+        let mut matching: Vec<&Value> = state
             .cards
             .iter()
             .filter(|card| {
-                let name = card["name"].as_str().unwrap_or_default().to_lowercase();
+                let name = text(card, "name").to_lowercase();
                 terms.iter().all(|t| name.contains(t))
             })
             .collect();
+        match order.as_str() {
+            "name" => matching.sort_by_key(|card| text(card, "name").to_lowercase()),
+            "released" => matching.sort_by(|a, b| {
+                text(b, "released_at")
+                    .cmp(&text(a, "released_at"))
+                    .then_with(|| text(a, "name").cmp(&text(b, "name")))
+            }),
+            other => {
+                return error(400, "bad_request", &format!("Unknown order `{other}`."));
+            }
+        }
         if matching.is_empty() {
             return error(404, "not_found", NOT_FOUND_DETAILS);
         }
@@ -203,6 +225,7 @@ impl Respond for FakeScryfall {
             url.set_path("/cards/search");
             url.query_pairs_mut()
                 .append_pair("q", &query)
+                .append_pair("order", &order)
                 .append_pair("page", &(page + 1).to_string());
             url.to_string()
         });

@@ -72,7 +72,7 @@ async fn enter_on_a_cached_entry_sends_no_request() {
     h.settle().await;
     assert_eq!(h.fake.request_count(), requests);
     assert_eq!(h.app.focus(), Panel::Main);
-    assert_eq!(h.result_names(), ["Shivan Dragon", "Dragon Mage"]);
+    assert_eq!(h.result_names(), ["Dragon Mage", "Shivan Dragon"]);
     assert_eq!(h.app.search_query(), "dragon");
     assert_eq!(
         queries(&h),

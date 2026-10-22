@@ -5,15 +5,19 @@ mod support;
 use std::time::Duration;
 
 use scry::scryfall::client::{RateLimits, ScryfallClient};
-use scry::search::CardSearch;
 use scry::search::api::ApiSearch;
-use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named};
+use scry::search::{CardSearch, SearchRequest, SortOrder};
+use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named, card_released};
 
 const NO_LIMITS: RateLimits = RateLimits {
     search: Duration::ZERO,
     other: Duration::ZERO,
     rate_limited_pause: Duration::ZERO,
 };
+
+fn by_name(query: &str) -> SearchRequest {
+    SearchRequest::new(query, SortOrder::Name)
+}
 
 fn dragons(count: usize) -> Vec<serde_json::Value> {
     (0..count)
@@ -31,7 +35,11 @@ async fn first_page_holds_the_configured_page_and_the_total() {
     cards.push(card_named("Sol Ring"));
     let (server, fake) = FakeScryfall::start(cards).await;
     fake.set_page_size(5);
-    let page = search(&server).await.first_page("dragon").await.unwrap();
+    let page = search(&server)
+        .await
+        .first_page(&by_name("dragon"))
+        .await
+        .unwrap();
     let names: Vec<String> = page.cards.iter().map(|c| c.display_name()).collect();
     assert_eq!(
         names,
@@ -50,11 +58,41 @@ async fn first_page_holds_the_configured_page_and_the_total() {
 }
 
 #[tokio::test]
+async fn the_order_is_sent_to_scryfall() {
+    let cards = vec![
+        card_released("Young Dragon", "2026-10-19"),
+        card_released("Ancient Dragon", "2001-01-01"),
+    ];
+    let (server, fake) = FakeScryfall::start(cards).await;
+    let search = search(&server).await;
+    let names = |page: scry::domain::search_results::SearchPage| -> Vec<String> {
+        page.cards.iter().map(|c| c.display_name()).collect()
+    };
+    let by_name = search.first_page(&by_name("dragon")).await.unwrap();
+    assert_eq!(names(by_name), ["Ancient Dragon", "Young Dragon"]);
+    let request = SearchRequest::new("dragon", SortOrder::Released);
+    let newest_first = search.first_page(&request).await.unwrap();
+    assert_eq!(names(newest_first), ["Young Dragon", "Ancient Dragon"]);
+    let paths: Vec<String> = fake
+        .received()
+        .into_iter()
+        .map(|r| r.path_and_query)
+        .collect();
+    assert_eq!(
+        paths,
+        [
+            "/cards/search?q=dragon&order=name",
+            "/cards/search?q=dragon&order=released"
+        ]
+    );
+}
+
+#[tokio::test]
 async fn warnings_are_kept_verbatim() {
     let (server, _fake) = FakeScryfall::start(dragons(2)).await;
     let page = search(&server)
         .await
-        .first_page("dragon c:r")
+        .first_page(&by_name("dragon c:r"))
         .await
         .unwrap();
     assert_eq!(page.cards.len(), 2);
@@ -65,7 +103,11 @@ async fn warnings_are_kept_verbatim() {
 #[tokio::test]
 async fn no_match_is_an_empty_page_with_scryfalls_message() {
     let (server, _fake) = FakeScryfall::start(dragons(2)).await;
-    let page = search(&server).await.first_page("goblin").await.unwrap();
+    let page = search(&server)
+        .await
+        .first_page(&by_name("goblin"))
+        .await
+        .unwrap();
     assert!(page.cards.is_empty());
     assert_eq!(page.total_cards, Some(0));
     assert_eq!(page.next, None);
@@ -77,7 +119,7 @@ async fn next_page_follows_the_token() {
     let (server, fake) = FakeScryfall::start(dragons(7)).await;
     fake.set_page_size(5);
     let search = search(&server).await;
-    let first = search.first_page("dragon").await.unwrap();
+    let first = search.first_page(&by_name("dragon")).await.unwrap();
     let second = search
         .next_page(first.next.as_ref().unwrap())
         .await
@@ -125,7 +167,7 @@ mod batches {
         let (server, fake) = FakeScryfall::start(dragons(12)).await;
         fake.set_page_size(5);
         let search = search(&server).await;
-        let (first, next) = run_batch(&search, BatchStart::Query("dragon".into()), 2).await;
+        let (first, next) = run_batch(&search, BatchStart::Query(by_name("dragon")), 2).await;
         assert_eq!(first.len(), 2);
         assert_eq!(
             fake.request_count(),
@@ -155,7 +197,7 @@ mod batches {
         fake.set_page_size(5);
         let (log, next) = run_batch(
             &search(&server).await,
-            BatchStart::Query("dragon".into()),
+            BatchStart::Query(by_name("dragon")),
             6,
         )
         .await;
@@ -176,7 +218,7 @@ mod batches {
         let search = ApiSearch::new(
             ScryfallClient::with_base_url(server.uri().parse().unwrap(), limits).unwrap(),
         );
-        let (log, _) = run_batch(&search, BatchStart::Query("dragon".into()), 2).await;
+        let (log, _) = run_batch(&search, BatchStart::Query(by_name("dragon")), 2).await;
         assert_eq!(
             log,
             [
@@ -194,7 +236,7 @@ mod batches {
         fake.fail_on_page(2);
         let (log, next) = run_batch(
             &search(&server).await,
-            BatchStart::Query("dragon".into()),
+            BatchStart::Query(by_name("dragon")),
             3,
         )
         .await;

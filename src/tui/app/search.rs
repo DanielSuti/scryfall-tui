@@ -1,7 +1,7 @@
 //! Running searches: the search bar commands, background batches and their updates.
 
 use crate::app::command::{CommandId, Scope};
-use crate::search::{BatchEvent, BatchStart, load_batch};
+use crate::search::{BatchEvent, BatchStart, SearchRequest, load_batch};
 use crate::tui::app::registrar::{Registrar, RegistrationError, command};
 use crate::tui::app::{App, AppEvent, SearchUpdate};
 use crate::tui::keymap::mode::Mode;
@@ -57,42 +57,43 @@ impl App {
         self.run_query(&query);
     }
 
-    /// Shows the results of `query`, from the cache when it holds them, and otherwise starts
-    /// loading its first batch.
+    /// Shows the results of `query` in the session's sort order, from the cache when it holds
+    /// them, and otherwise starts loading their first batch.
     pub(super) fn run_query(&mut self, query: &str) {
-        if let Some(start) = self.cache.begin(query) {
-            self.spawn_batch(query, start);
+        let request = SearchRequest::new(query, self.sort_order);
+        if let Some(start) = self.cache.begin(&request) {
+            self.spawn_batch(&request, start);
         }
-        self.refresh_results(query);
+        self.refresh_results(&request);
     }
 
-    /// Starts loading the next batch of the displayed query when its loading is paused.
+    /// Starts loading the next batch of the displayed request when its loading is paused.
     pub(super) fn load_more(&mut self) {
-        let Some(query) = self.results.query().map(str::to_owned) else {
+        let Some(request) = self.results.request().cloned() else {
             return;
         };
-        if let Some(start) = self.cache.resume(&query) {
-            self.spawn_batch(&query, start);
-            self.refresh_results(&query);
+        if let Some(start) = self.cache.resume(&request) {
+            self.spawn_batch(&request, start);
+            self.refresh_results(&request);
         }
     }
 
-    fn spawn_batch(&mut self, query: &str, start: BatchStart) {
+    fn spawn_batch(&mut self, request: &SearchRequest, start: BatchStart) {
         let Some(services) = self.services.clone() else {
-            if let Some(results) = self.cache.get_mut(query) {
+            if let Some(results) = self.cache.get_mut(request) {
                 results.fail(NO_SEARCH_SOURCE);
             }
             return;
         };
         self.batches_running += 1;
         let max_pages = self.config.search.max_pages;
-        let query = query.to_owned();
+        let request = request.clone();
         tokio::spawn(async move {
             let events = services.events.clone();
             let send = |update| {
                 // A closed channel means the app has quit; the update has no reader left.
                 let _ = events.send(AppEvent::Search {
-                    query: query.clone(),
+                    request: request.clone(),
                     update,
                 });
             };
@@ -108,9 +109,9 @@ impl App {
         });
     }
 
-    pub(super) fn handle_search_update(&mut self, query: &str, update: SearchUpdate) {
-        let displayed = self.results.query() == Some(query);
-        let Some(results) = self.cache.get_mut(query) else {
+    pub(super) fn handle_search_update(&mut self, request: &SearchRequest, update: SearchUpdate) {
+        let displayed = self.results.request() == Some(request);
+        let Some(results) = self.cache.get_mut(request) else {
             return;
         };
         let first_card = match &update {
@@ -146,17 +147,17 @@ impl App {
             self.check_formats(&card);
         }
         if let Some(total) = first_total {
-            self.history.set_total(query, total);
+            self.history.set_total(&request.query, total);
             self.history_changed();
         }
         if displayed {
-            self.refresh_results(query);
+            self.refresh_results(request);
         }
     }
 
-    fn refresh_results(&mut self, query: &str) {
-        if let Some(results) = self.cache.get(query) {
-            self.results.show(results);
+    pub(super) fn refresh_results(&mut self, request: &SearchRequest) {
+        if let Some(results) = self.cache.get(request) {
+            self.results.show(request, results);
         }
     }
 }

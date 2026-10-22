@@ -41,7 +41,7 @@ async fn enter_runs_one_search_and_focuses_the_results() {
     h.search("dragon").await;
     assert_eq!(h.fake.request_count(), 1);
     assert_eq!((h.app.focus(), h.app.mode()), (Panel::Main, Mode::Normal));
-    assert_eq!(h.result_names(), ["Shivan Dragon", "Dragon Mage"]);
+    assert_eq!(h.result_names(), ["Dragon Mage", "Shivan Dragon"]);
 }
 
 #[tokio::test]
@@ -62,5 +62,5 @@ async fn running_a_cached_query_again_sends_no_request() {
     h.search("glory").await;
     h.search("dragon").await;
     assert_eq!(h.fake.request_count(), 2);
-    assert_eq!(h.result_names(), ["Shivan Dragon", "Dragon Mage"]);
+    assert_eq!(h.result_names(), ["Dragon Mage", "Shivan Dragon"]);
 }

@@ -10,7 +10,7 @@ use ratatui::layout::{Constraint, Flex, Layout, Rect};
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Clear};
 
-use crate::tui::text::truncate;
+use crate::tui::text::{display_width, truncate};
 use crate::tui::widgets::item_list::{ItemList, Motion};
 use crate::tui::widgets::query_input::QueryInput;
 
@@ -56,6 +56,12 @@ impl<T> fmt::Debug for Picker<T> {
 
 /// Number of rows the popup moves by for `<C-j>`/`<C-k>`; the list itself scrolls as needed.
 const PICKER_VIEWPORT: usize = 20;
+/// The popup is at most this percentage of the screen's width.
+pub const MAX_WIDTH_PERCENT: u16 = 60;
+/// The popup is at most this percentage of the screen's height.
+pub const MAX_HEIGHT_PERCENT: u16 = 70;
+/// The popup is at least this many columns wide, so the query has room.
+const MIN_WIDTH: usize = 24;
 
 impl<T: Clone> Picker<T> {
     /// Creates a picker titled `title` over `items`, each a label and a value.
@@ -90,6 +96,14 @@ impl<T: Clone> Picker<T> {
     pub fn selected_label(&self) -> Option<&str> {
         let index = *self.matches.get(self.list.cursor())?;
         Some(self.items[index].0.as_str())
+    }
+
+    /// Moves the cursor to the first matching item whose value satisfies `pred`. Leaves the
+    /// cursor in place when none does.
+    pub fn select_where(&mut self, pred: impl Fn(&T) -> bool) {
+        if let Some(row) = self.matches.iter().position(|i| pred(&self.items[*i].1)) {
+            self.list.select(row, PICKER_VIEWPORT);
+        }
     }
 
     fn refilter(&mut self) {
@@ -143,12 +157,27 @@ impl<T: Clone> Picker<T> {
         PickerOutcome::Open
     }
 
-    /// Draws the picker centred in `area`.
+    /// Draws the picker centred in `area`, sized to its items: as wide as the longest label
+    /// and as tall as the item list, up to [`MAX_WIDTH_PERCENT`] and [`MAX_HEIGHT_PERCENT`]
+    /// of `area`.
     pub fn render(&self, frame: &mut Frame, area: Rect) {
-        let [popup] = Layout::horizontal([Constraint::Percentage(60)])
+        let label_width = self
+            .items
+            .iter()
+            .map(|(label, _)| display_width(label))
+            .chain([display_width(&self.title) + 4, MIN_WIDTH])
+            .max()
+            .unwrap_or(MIN_WIDTH);
+        // Borders, the cursor marker and a space on each side.
+        let wanted_width = u16::try_from(label_width + 5).unwrap_or(u16::MAX);
+        // Borders and the query line.
+        let wanted_height = u16::try_from(self.items.len() + 3).unwrap_or(u16::MAX);
+        let width = wanted_width.min(area.width * MAX_WIDTH_PERCENT / 100);
+        let height = wanted_height.min(area.height * MAX_HEIGHT_PERCENT / 100);
+        let [popup] = Layout::horizontal([Constraint::Length(width)])
             .flex(Flex::Center)
             .areas(area);
-        let [popup] = Layout::vertical([Constraint::Percentage(70)])
+        let [popup] = Layout::vertical([Constraint::Length(height)])
             .flex(Flex::Center)
             .areas(popup);
         frame.render_widget(Clear, popup);
@@ -251,6 +280,15 @@ mod tests {
             press(&mut picker, KeyCode::Enter, KeyModifiers::NONE),
             PickerOutcome::Selected(2)
         );
+    }
+
+    #[test]
+    fn select_where_moves_the_cursor_to_the_value() {
+        let mut picker = picker();
+        picker.select_where(|v| *v == 3);
+        assert_eq!(picker.selected_label(), Some("Search the focused panel"));
+        picker.select_where(|v| *v == 99);
+        assert_eq!(picker.selected_label(), Some("Search the focused panel"));
     }
 
     #[test]

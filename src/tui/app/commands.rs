@@ -2,8 +2,8 @@
 //! keymaps picker.
 
 use crate::app::command::{CommandId, CommandRegistry, Scope};
-use crate::tui::app::App;
 use crate::tui::app::registrar::{Registrar, RegistrationError, command};
+use crate::tui::app::{App, OpenPicker};
 use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::mode::Mode;
 use crate::tui::layout::{
@@ -62,7 +62,10 @@ impl App {
     }
 
     fn open_keymaps_picker(&mut self) {
-        self.picker = Some(keymaps_picker(&self.commands, &self.keymap));
+        self.picker = Some(OpenPicker::Keymaps(keymaps_picker(
+            &self.commands,
+            &self.keymap,
+        )));
         self.enter_insert_mode();
     }
 
@@ -204,7 +207,8 @@ pub(super) fn register_all(
     register_main_panel_commands(&mut reg)?;
     register_pane_commands(&mut reg)?;
     super::search::register(&mut reg)?;
-    super::history::register(&mut reg)
+    super::history::register(&mut reg)?;
+    super::sort::register(&mut reg)
 }
 
 fn register_pane_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {

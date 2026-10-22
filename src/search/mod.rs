@@ -37,10 +37,63 @@ impl SearchError {
     }
 }
 
+/// The order in which a search returns its cards.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum SortOrder {
+    /// By name, A to Z.
+    #[default]
+    Name,
+    /// By release date, newest first.
+    Released,
+}
+
+impl SortOrder {
+    /// Every order, in the order a picker lists them.
+    pub const ALL: [SortOrder; 2] = [SortOrder::Name, SortOrder::Released];
+
+    /// Returns the name shown in the sort picker.
+    pub fn label(self) -> &'static str {
+        match self {
+            SortOrder::Name => "Name (A → Z)",
+            SortOrder::Released => "Release date (newest first)",
+        }
+    }
+
+    /// Returns the short description shown in the status line, such as `by name`.
+    pub fn summary(self) -> &'static str {
+        match self {
+            SortOrder::Name => "by name",
+            SortOrder::Released => "by release date",
+        }
+    }
+}
+
+/// A query and the order its results come in.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct SearchRequest {
+    /// The query, sent to the source unchanged.
+    pub query: String,
+    /// The order of the results.
+    pub order: SortOrder,
+}
+
+impl SearchRequest {
+    /// Creates a request for `query` in `order`.
+    pub fn new(query: impl Into<String>, order: SortOrder) -> Self {
+        Self {
+            query: query.into(),
+            order,
+        }
+    }
+}
+
 /// A source of card search results, delivered one page at a time.
 pub trait CardSearch: Send + Sync {
-    /// Fetches the first page of results for `query`.
-    fn first_page<'a>(&'a self, query: &'a str) -> BoxFuture<'a, Result<SearchPage, SearchError>>;
+    /// Fetches the first page of results for `request`.
+    fn first_page<'a>(
+        &'a self,
+        request: &'a SearchRequest,
+    ) -> BoxFuture<'a, Result<SearchPage, SearchError>>;
 
     /// Fetches the page that `token` points to.
     fn next_page<'a>(
@@ -56,7 +109,7 @@ pub const MAX_RATE_LIMIT_RETRIES: usize = 2;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BatchStart {
     /// The first page of a new search.
-    Query(String),
+    Query(SearchRequest),
     /// The page a previous batch stopped before.
     Next(PageToken),
 }
@@ -89,7 +142,7 @@ pub async fn load_batch(
         let mut retries = 0;
         let page = loop {
             let result = match &next {
-                BatchStart::Query(query) => search.first_page(query).await,
+                BatchStart::Query(request) => search.first_page(request).await,
                 BatchStart::Next(token) => search.next_page(token).await,
             };
             match result {

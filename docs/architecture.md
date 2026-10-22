@@ -30,7 +30,7 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 ## Search flow
 
 1. The search bar sends the query. History records it.
-2. If the results cache holds the query, its results are shown without a request.
+2. The query and the session's sort order form the search request. If the results cache holds the request, its results are shown without a request.
 3. Otherwise a background task loads up to `search.max_pages` pages through `CardSearch`. Each page arrives as an `AppEvent` and is added to the cached results.
 4. When the cursor reaches the last loaded row and more pages exist, the next batch loads.
 

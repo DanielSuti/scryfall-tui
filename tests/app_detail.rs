@@ -25,13 +25,14 @@ async fn in_the_split_the_detail_follows_the_results_cursor() {
     h.search("e").await;
     h.press("<CR>");
     assert_eq!(h.app.main_view(), MainView::Split);
+    // Scryfall sorts by name: Balefang, Delver, Glorybringer.
+    assert!(first_line(&h).starts_with("Balefang"), "{}", first_line(&h));
+    h.press("j");
     assert!(
-        first_line(&h).starts_with("Glorybringer"),
+        first_line(&h).starts_with("Delver of Secrets"),
         "{}",
         first_line(&h)
     );
-    h.press("j");
-    assert!(first_line(&h).starts_with("Balefang"), "{}", first_line(&h));
     assert_eq!(h.app.selection().unwrap().index, 1);
 }
 
@@ -41,14 +42,14 @@ async fn j_and_k_step_cards_in_the_full_detail_and_stop_at_the_last() {
     h.search("e").await;
     h.press("d");
     h.press("J");
-    assert!(first_line(&h).starts_with("Balefang"));
+    assert!(first_line(&h).starts_with("Delver of Secrets"));
     h.press("JJJ");
     assert!(
-        first_line(&h).starts_with("Delver of Secrets"),
+        first_line(&h).starts_with("Glorybringer"),
         "J at the last card stays put"
     );
     h.press("K");
-    assert!(first_line(&h).starts_with("Balefang"));
+    assert!(first_line(&h).starts_with("Delver of Secrets"));
 }
 
 #[tokio::test]

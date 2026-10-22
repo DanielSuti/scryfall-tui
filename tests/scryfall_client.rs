@@ -26,7 +26,7 @@ async fn every_request_sends_user_agent_and_accept() {
     let client = client_for(&server, unthrottled(Duration::ZERO)).await;
     for _ in 0..2 {
         client
-            .get_card_list(client.search_url("glory"))
+            .get_card_list(client.search_url("glory", "name"))
             .await
             .unwrap();
     }
@@ -43,13 +43,13 @@ async fn query_is_sent_unchanged() {
     let (server, fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
     let client = client_for(&server, unthrottled(Duration::ZERO)).await;
     let list = client
-        .get_card_list(client.search_url("glory t:dragon"))
+        .get_card_list(client.search_url("glory t:dragon", "name"))
         .await
         .unwrap();
     assert_eq!(list.data.len(), 1);
     assert_eq!(
         fake.received()[0].path_and_query,
-        "/cards/search?q=glory+t%3Adragon"
+        "/cards/search?q=glory+t%3Adragon&order=name"
     );
     assert_eq!(
         list.warnings.unwrap(),
@@ -62,7 +62,7 @@ async fn error_details_surface_verbatim() {
     let (server, _fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
     let client = client_for(&server, unthrottled(Duration::ZERO)).await;
     let err = client
-        .get_card_list(client.search_url("zzz"))
+        .get_card_list(client.search_url("zzz", "name"))
         .await
         .unwrap_err();
     match &err {
@@ -80,7 +80,7 @@ async fn rate_limit_response_pauses_later_requests() {
     let (server, fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
     fake.set_min_interval(Duration::from_millis(200));
     let client = client_for(&server, unthrottled(pause)).await;
-    let url = client.search_url("glory");
+    let url = client.search_url("glory", "name");
     client.get_card_list(url.clone()).await.unwrap();
     let err = client.get_card_list(url.clone()).await.unwrap_err();
     assert!(
@@ -106,7 +106,7 @@ async fn network_failure_is_a_transport_error() {
     )
     .unwrap();
     let err = client
-        .get_card_list(client.search_url("x"))
+        .get_card_list(client.search_url("x", "name"))
         .await
         .unwrap_err();
     assert!(matches!(err, ScryfallError::Transport(_)), "{err:?}");
