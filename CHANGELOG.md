@@ -22,3 +22,4 @@ All notable changes to this project are documented in this file, newest release 
 - `/`, `n` and `N` search the text of the focused panel with smart case and wrap around, and the vim motions move the focused list.
 - Fuzzy picker popup that filters labelled items as you type, moves with `<C-j>`/`<C-k>` and chooses with `<Enter>`.
 - Keymaps picker on `<leader>sk` listing every command with its keys. Choosing one runs it.
+- Request throttle that spaces request starts per bucket and pauses every bucket after a rate-limit response.
