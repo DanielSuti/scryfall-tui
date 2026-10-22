@@ -28,3 +28,4 @@ All notable changes to this project are documented in this file, newest release 
 - Scryfall HTTP client sending the `scry/<version>` User-Agent and Accept headers through the throttle. Error objects keep Scryfall's details, and a 429 pauses all requests. A stateful fake of the search API backs the tests.
 - `CardSearch` contract for search sources, and `ApiSearch` sending queries to Scryfall unchanged. A search with no match gives an empty page with Scryfall's message.
 - Config file `~/.config/scry/config.toml` with `search.max_pages`, `history.max_entries` and `detail.formats`. Unknown keys and invalid values stop `scry` with an error naming the key.
+- Batch loading of search results: up to `search.max_pages` pages at a time, retrying after rate-limit pauses and stopping at the last page or on a failure.
