@@ -36,3 +36,4 @@ All notable changes to this project are documented in this file, newest release 
 - Search history model: newest first, re-run queries move to the top, capped at `history.max_entries`, saved atomically as JSON Lines.
 - History panel listing past queries with their result counts, cutting long queries with `...`. `<Enter>` runs an entry from the cache, `e` edits it in the search bar and `dd` deletes it. The history is saved in `~/.local/state/scry/history.jsonl`.
 - Failed searches keep their loaded cards and show the reason in the status line until the query is run again. Network failures and rate-limit pauses are shown there as well.
+- Ignored test running one real search against the Scryfall API.

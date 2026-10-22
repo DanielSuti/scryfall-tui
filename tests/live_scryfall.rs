@@ -30,3 +30,21 @@ async fn supertypes_match_scryfall() {
     ours.sort();
     assert_eq!(ours, live);
 }
+
+#[tokio::test]
+#[ignore = "calls the live Scryfall API"]
+async fn a_real_search_returns_parsed_cards() {
+    use scry::scryfall::client::ScryfallClient;
+    use scry::search::CardSearch;
+    use scry::search::api::ApiSearch;
+
+    let search = ApiSearch::new(ScryfallClient::new().unwrap());
+    let page = search.first_page("!\"Glorybringer\"").await.unwrap();
+    assert_eq!(page.cards.len(), 1);
+    let card = &page.cards[0];
+    assert_eq!(card.display_name(), "Glorybringer");
+    assert_eq!(card.display_cost(), "{3}{R}{R}");
+    assert_eq!(card.display_types(), "Creature");
+    let none = search.first_page("zzzqqqnotacard").await.unwrap();
+    assert!(none.cards.is_empty() && none.notice.is_some());
+}
