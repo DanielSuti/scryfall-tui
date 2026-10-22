@@ -1,0 +1,7 @@
+//! Terminal UI: event loop, application state, layout, views and keys.
+
+pub mod app;
+pub mod event_loop;
+pub mod keymap;
+pub mod terminal;
+pub mod widgets;
