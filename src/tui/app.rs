@@ -12,8 +12,10 @@ use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
 use crate::tui::keymap::sequence::Key;
 use crate::tui::layout::{
-    DETAIL_SCOPE, HISTORY_SCOPE, Panel, RESULTS_SCOPE, SEARCH_BAR_SCOPE, ScreenAreas, panel_block,
+    DETAIL_SCOPE, FULL_DETAIL_SCOPE, HISTORY_SCOPE, Panel, RESULTS_SCOPE, SEARCH_BAR_SCOPE,
+    SPLIT_SCOPE, ScreenAreas, panel_block,
 };
+use crate::tui::main_panel::{Back, MainView};
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::StatusLine;
 use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup};
@@ -35,6 +37,14 @@ pub const FOCUS_MAIN: CommandId = CommandId("focus.main");
 pub const FOCUS_DETAIL: CommandId = CommandId("focus.detail");
 /// Closes the history overlay.
 pub const CLOSE_OVERLAY: CommandId = CommandId("history.close_overlay");
+/// Shows the full detail in the main panel.
+pub const FULL_DETAIL: CommandId = CommandId("main.full_detail");
+/// Shows the detail next to the results.
+pub const SPLIT: CommandId = CommandId("main.split");
+/// Steps back from the split or the full detail to the results.
+pub const BACK: CommandId = CommandId("main.back");
+/// Steps back from the results, which quits.
+pub const QUIT_FROM_RESULTS: CommandId = CommandId("main.quit");
 
 /// An input to the application, from the terminal, a timer or a background task.
 #[derive(Debug, Clone)]
@@ -60,6 +70,7 @@ pub struct App {
     area: Rect,
     focus: Panel,
     history_overlay: bool,
+    main_view: MainView,
 }
 
 impl Default for App {
@@ -86,6 +97,7 @@ impl App {
             area: Rect::default(),
             focus: Panel::Main,
             history_overlay: false,
+            main_view: MainView::Results,
         };
         register_app_commands(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
@@ -132,7 +144,30 @@ impl App {
     }
 
     fn areas_for(&self, area: Rect) -> ScreenAreas {
-        ScreenAreas::compute(area, false, self.history_overlay)
+        ScreenAreas::compute(
+            area,
+            self.main_view == MainView::Split,
+            self.history_overlay,
+        )
+    }
+
+    /// Returns what the main panel shows.
+    pub fn main_view(&self) -> MainView {
+        self.main_view
+    }
+
+    fn show_main(&mut self, view: MainView) {
+        self.main_view = view;
+        if view != MainView::Split && self.focus == Panel::Detail {
+            self.focus = Panel::Main;
+        }
+    }
+
+    fn main_back(&mut self) {
+        match self.main_view.on_back() {
+            Back::To(view) => self.show_main(view),
+            Back::Quit => self.quit = true,
+        }
     }
 
     fn set_focus(&mut self, panel: Panel) {
@@ -179,7 +214,11 @@ impl App {
         match self.focus {
             Panel::SearchBar => SEARCH_BAR_SCOPE,
             Panel::History => HISTORY_SCOPE,
-            Panel::Main => RESULTS_SCOPE,
+            Panel::Main => match self.main_view {
+                MainView::Results => RESULTS_SCOPE,
+                MainView::Split => SPLIT_SCOPE,
+                MainView::FullDetail => FULL_DETAIL_SCOPE,
+            },
             Panel::Detail => DETAIL_SCOPE,
         }
     }
@@ -193,18 +232,18 @@ impl App {
         }
     }
 
-    /// Returns the status-line hints of `scope`: each command of that scope with a hint label,
-    /// in registration order, formatted as its first normal-mode key and the label.
+    /// Returns the status-line hints of `scope`: each command with a hint label and a
+    /// normal-mode binding in that scope, in registration order, formatted as its first such
+    /// key and the label.
     pub fn hints_for(&self, scope: Scope) -> Vec<String> {
         self.commands
             .iter()
-            .filter(|command| command.scope == scope)
             .filter_map(|command| {
                 let hint = command.hint?;
                 let binding = self
                     .keymap
                     .bindings_for(command.id)
-                    .find(|b| b.mode == Mode::Normal)?;
+                    .find(|b| b.mode == Mode::Normal && b.scope == scope)?;
                 Some(format!(
                     "{} {hint}",
                     hint_keys(&binding.sequence.to_string())
@@ -302,6 +341,7 @@ impl App {
         let name = match panel {
             Panel::SearchBar => "Search",
             Panel::History => "History",
+            Panel::Main if self.main_view == MainView::FullDetail => "Detail",
             Panel::Main => "Results",
             Panel::Detail => "Detail",
         };
@@ -345,6 +385,20 @@ impl Registrar<'_> {
     ) -> Result<(), RegistrationError> {
         let (id, scope) = (command.id, command.scope);
         self.commands.register(command)?;
+        self.bind(mode, scope, keys, id)
+    }
+
+    /// Binds each of `keys` to the registered command `id` in `mode` and `scope`.
+    ///
+    /// # Errors
+    /// Returns an error when a key binding is invalid or conflicts with another.
+    pub fn bind(
+        &mut self,
+        mode: Mode,
+        scope: Scope,
+        keys: &[&str],
+        id: CommandId,
+    ) -> Result<(), RegistrationError> {
         for notation in keys {
             self.keymap.bind(mode, scope, notation, id)?;
         }
@@ -440,6 +494,60 @@ fn register_app_commands(
             },
         ),
     )?;
+    register_main_panel_commands(&mut reg)
+}
+
+fn register_main_panel_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {
+    let normal = Mode::Normal;
+    reg.add(
+        normal,
+        &["d"],
+        command(
+            FULL_DETAIL,
+            RESULTS_SCOPE,
+            "Show the full detail",
+            Some("detail"),
+            |app| app.show_main(app.main_view.on_detail()),
+        ),
+    )?;
+    reg.bind(normal, SPLIT_SCOPE, &["d"], FULL_DETAIL)?;
+    reg.bind(normal, DETAIL_SCOPE, &["d"], FULL_DETAIL)?;
+    reg.add(
+        normal,
+        &["<CR>"],
+        command(
+            SPLIT,
+            RESULTS_SCOPE,
+            "Show the detail next to the results",
+            Some("split"),
+            |app| app.show_main(app.main_view.on_split()),
+        ),
+    )?;
+    reg.bind(normal, FULL_DETAIL_SCOPE, &["<CR>"], SPLIT)?;
+    reg.add(
+        normal,
+        &["q"],
+        command(
+            QUIT_FROM_RESULTS,
+            RESULTS_SCOPE,
+            "Quit from the results",
+            Some("quit"),
+            App::main_back,
+        ),
+    )?;
+    reg.add(
+        normal,
+        &["q"],
+        command(
+            BACK,
+            SPLIT_SCOPE,
+            "Back to the results",
+            Some("back"),
+            App::main_back,
+        ),
+    )?;
+    reg.bind(normal, FULL_DETAIL_SCOPE, &["q"], BACK)?;
+    reg.bind(normal, DETAIL_SCOPE, &["q"], BACK)?;
     Ok(())
 }
 
@@ -463,6 +571,7 @@ mod tests {
     #[test]
     fn capital_q_quits_in_normal_mode() {
         let mut app = App::new();
+        type_text(&mut app, "2");
         app.handle_event(key(KeyCode::Char('q')));
         assert!(!app.should_quit());
         app.handle_event(key(KeyCode::Char('Q')));
@@ -513,8 +622,8 @@ mod tests {
     #[test]
     fn hints_come_from_the_registry_of_the_scope() {
         let mut app = App::new();
-        let results = Scope("results");
-        let history = Scope("history");
+        let results = Scope("test_results");
+        let history = Scope("test_history");
         scoped_command(&mut app, results, "r.detail", "d", "Detail", Some("detail"));
         scoped_command(&mut app, results, "r.split", "<CR>", "Split", Some("split"));
         scoped_command(&mut app, results, "r.top", "gg", "Top", None);
@@ -634,6 +743,62 @@ mod tests {
         let mut wide = sized(100, 12);
         type_text(&mut wide, "2");
         assert!(wide.areas().overlay.is_none());
+    }
+
+    fn press(app: &mut App, notation: &str) {
+        let keys = crate::tui::keymap::sequence::KeySequence::parse(notation)
+            .unwrap()
+            .resolve(LEADER);
+        for k in keys {
+            let modifiers = KeyModifiers::NONE;
+            app.handle_event(AppEvent::Key(KeyEvent::new(k.code(), modifiers)));
+        }
+    }
+
+    #[test]
+    fn main_panel_keys_follow_the_transition_table() {
+        let mut app = sized(112, 12);
+        press(&mut app, "<CR>");
+        assert_eq!(app.main_view(), MainView::Split);
+        assert_eq!(app.focus(), Panel::Main, "results keep focus");
+        press(&mut app, "<CR>");
+        assert_eq!(app.main_view(), MainView::Split, "no-op");
+        press(&mut app, "d");
+        assert_eq!(app.main_view(), MainView::FullDetail);
+        press(&mut app, "d");
+        assert_eq!(app.main_view(), MainView::FullDetail, "no-op");
+        press(&mut app, "<CR>");
+        press(&mut app, "0");
+        assert_eq!(app.focus(), Panel::Detail);
+        press(&mut app, "q");
+        assert_eq!(app.main_view(), MainView::Results);
+        assert_eq!(app.focus(), Panel::Main);
+        press(&mut app, "d");
+        press(&mut app, "q");
+        assert_eq!(app.main_view(), MainView::Results);
+        assert!(!app.should_quit());
+        press(&mut app, "q");
+        assert!(app.should_quit(), "q quits only from the results");
+    }
+
+    #[test]
+    fn hints_follow_the_main_view() {
+        let mut app = sized(112, 12);
+        assert_eq!(
+            app.hints_for(app.focused_scope()),
+            ["d detail", "⏎ split", "q quit"]
+        );
+        press(&mut app, "<CR>");
+        assert_eq!(app.hints_for(app.focused_scope()), ["d detail", "q back"]);
+        press(&mut app, "d");
+        assert_eq!(app.hints_for(app.focused_scope()), ["⏎ split", "q back"]);
+    }
+
+    #[test]
+    fn renders_split() {
+        let mut app = sized(112, 8);
+        press(&mut app, "<CR>");
+        insta::assert_snapshot!(render(&app));
     }
 
     #[test]

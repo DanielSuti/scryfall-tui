@@ -11,4 +11,4 @@ expression: render(&app)
 "┃                          │ ab First  │"
 "┃                          │ c  Second │"
 "┗━━━━━━━━━━━━━━━━━━━━━━━━━━╰───────────╯"
-" NORMAL  │ [3] Results                  "
+" NORMAL  │ [3] Results d detail · ⏎ ... "

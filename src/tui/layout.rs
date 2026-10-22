@@ -44,9 +44,13 @@ impl Panel {
 pub const SEARCH_BAR_SCOPE: Scope = Scope("search_bar");
 /// Key bindings and commands that apply while the history has focus.
 pub const HISTORY_SCOPE: Scope = Scope("history");
-/// Key bindings and commands that apply while the results have focus.
+/// Key bindings that apply while the results have focus, without a split.
 pub const RESULTS_SCOPE: Scope = Scope("results");
-/// Key bindings and commands that apply while a detail view has focus.
+/// Key bindings that apply while the results have focus in the split.
+pub const SPLIT_SCOPE: Scope = Scope("split");
+/// Key bindings that apply while the full detail replaces the results.
+pub const FULL_DETAIL_SCOPE: Scope = Scope("full_detail");
+/// Key bindings that apply while the detail of the split has focus.
 pub const DETAIL_SCOPE: Scope = Scope("detail");
 
 /// The rectangles of one frame.
