@@ -62,6 +62,18 @@ impl Key {
         self.code
     }
 
+    /// Returns a terminal key press event for this key.
+    pub fn to_event(self) -> KeyEvent {
+        let mut modifiers = KeyModifiers::NONE;
+        if self.ctrl {
+            modifiers |= KeyModifiers::CONTROL;
+        }
+        if self.alt {
+            modifiers |= KeyModifiers::ALT;
+        }
+        KeyEvent::new(self.code, modifiers)
+    }
+
     /// Normalises a terminal key event. Returns `None` for key releases, which never trigger
     /// anything.
     pub fn from_event(event: &KeyEvent) -> Option<Self> {
@@ -307,6 +319,13 @@ mod tests {
             .unwrap()
             .resolve(Key::char(' '));
         assert_eq!(keys, vec![Key::char(' '), Key::char('s')]);
+    }
+
+    #[test]
+    fn to_event_round_trips() {
+        for key in [Key::char('j'), Key::ctrl('d'), Key::plain(KeyCode::Enter)] {
+            assert_eq!(Key::from_event(&key.to_event()), Some(key));
+        }
     }
 
     #[test]

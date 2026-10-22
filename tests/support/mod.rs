@@ -3,3 +3,4 @@
 #![allow(dead_code)]
 
 pub mod fake_scryfall;
+pub mod harness;

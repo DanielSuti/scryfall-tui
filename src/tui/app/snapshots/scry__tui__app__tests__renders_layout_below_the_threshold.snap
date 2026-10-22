@@ -1,5 +1,5 @@
 ---
-source: src/tui/app.rs
+source: src/tui/app/tests.rs
 expression: "render(&sized(99, 10))"
 ---
 "╭ [1] Search ─────────────────────────────────────────────────────────────────────────────────────╮"

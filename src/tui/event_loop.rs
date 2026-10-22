@@ -5,16 +5,21 @@ use std::io;
 use crossterm::event::{Event, EventStream};
 use futures::StreamExt;
 use ratatui::DefaultTerminal;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::time::Instant;
 
 use crate::tui::app::{App, AppEvent};
 
-/// Draws `app` and feeds it terminal events, and a tick at each deadline the app asks for,
-/// until it asks to quit.
+/// Draws `app` and feeds it terminal events, the events of its background tasks from
+/// `background`, and a tick at each deadline the app asks for, until it asks to quit.
 ///
 /// # Errors
 /// Returns an error when drawing fails or the terminal event stream fails or ends.
-pub async fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()> {
+pub async fn run(
+    terminal: &mut DefaultTerminal,
+    app: &mut App,
+    background: &mut UnboundedReceiver<AppEvent>,
+) -> io::Result<()> {
     let mut terminal_events = EventStream::new();
     let size = terminal.size()?;
     app.handle_event(AppEvent::Resize(size.width, size.height));
@@ -36,6 +41,7 @@ pub async fn run(terminal: &mut DefaultTerminal, app: &mut App) -> io::Result<()
                     ));
                 }
             },
+            Some(event) = background.recv() => app.handle_event(event),
             () = sleep_until(deadline) => app.handle_event(AppEvent::Tick),
         }
     }

@@ -25,7 +25,7 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 - A `Command` has an id, a description, the scope it belongs to, an optional hint label for the status line, and a handler.
 - The `Keymap` binds key sequences to command ids per mode and scope. The focused panel's scope is searched before the global scope.
 - The which-key popup, the status-line hints and the keymaps picker all read from the same registries, so they list everything that can be typed.
-- A feature adds a view that registers its own commands and keys. No central match over command ids exists.
+- A feature adds its panel state and drawing in `src/tui/views/`, and its commands in a submodule of `src/tui/app/` that registers them together with their keys. No central match over command ids exists.
 
 ## Search flow
 
