@@ -5,4 +5,5 @@ pub mod cli;
 pub mod domain;
 pub mod net;
 pub mod scryfall;
+pub mod search;
 pub mod tui;
