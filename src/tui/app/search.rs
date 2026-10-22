@@ -65,6 +65,17 @@ impl App {
         self.refresh_results(query);
     }
 
+    /// Starts loading the next batch of the displayed query when its loading is paused.
+    pub(super) fn load_more(&mut self) {
+        let Some(query) = self.results.query().map(str::to_owned) else {
+            return;
+        };
+        if let Some(start) = self.cache.resume(&query) {
+            self.spawn_batch(&query, start);
+            self.refresh_results(&query);
+        }
+    }
+
     fn spawn_batch(&mut self, query: &str, start: BatchStart) {
         let Some(services) = self.services.clone() else {
             if let Some(results) = self.cache.get_mut(query) {

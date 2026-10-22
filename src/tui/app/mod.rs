@@ -32,7 +32,7 @@ use crate::tui::layout::{
 use crate::tui::main_panel::{Back, MainView};
 use crate::tui::picker::picker::{Picker, PickerOutcome};
 use crate::tui::text::truncate;
-use crate::tui::views::results::ResultsView;
+use crate::tui::views::results::{ResultsView, load_summary};
 use crate::tui::views::search_bar::SearchBar;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::Pane;
@@ -424,9 +424,15 @@ impl App {
     }
 
     fn motion(&mut self, motion: Motion) -> MotionOutcome {
-        self.focused_pane()
+        let outcome = self
+            .focused_pane()
             .map(|(pane, viewport)| pane.apply_motion(motion, viewport))
-            .unwrap_or_default()
+            .unwrap_or_default();
+        let on_results = self.focus == Panel::Main && self.main_view != MainView::FullDetail;
+        if outcome.end_reached && on_results {
+            self.load_more();
+        }
+        outcome
     }
 
     fn close_picker(&mut self) {
@@ -487,11 +493,17 @@ impl App {
             prompt.render(frame, input, true);
         } else {
             let hints = self.hints_for(self.focused_scope());
-            let panel = self.title(self.focus);
+            let mut status = StatusLine::new(self.mode).section(self.title(self.focus));
+            let warnings = self.displayed_results().and_then(|results| {
+                (!results.warnings().is_empty())
+                    .then(|| StatusMessage::info(results.warnings().join(" ")))
+            });
+            if let Some(results) = self.displayed_results() {
+                status = status.section(load_summary(results));
+            }
             frame.render_widget(
-                StatusLine::new(self.mode)
-                    .section(panel)
-                    .message(self.message.as_ref())
+                status
+                    .message(self.message.as_ref().or(warnings.as_ref()))
                     .hints(&hints),
                 areas.status,
             );

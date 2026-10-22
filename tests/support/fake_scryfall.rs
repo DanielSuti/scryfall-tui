@@ -44,13 +44,18 @@ pub struct FakeScryfall {
     state: Arc<Mutex<State>>,
 }
 
-/// A real Card object recorded from Scryfall, used as the template for generated cards.
-pub fn template_card() -> Value {
-    let path = concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/tests/fixtures/scryfall/normal_glorybringer.json"
+/// The recorded Card object `tests/fixtures/scryfall/<name>.json`.
+pub fn fixture(name: &str) -> Value {
+    let path = format!(
+        "{}/tests/fixtures/scryfall/{name}.json",
+        env!("CARGO_MANIFEST_DIR")
     );
     serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// A real Card object recorded from Scryfall, used as the template for generated cards.
+pub fn template_card() -> Value {
+    fixture("normal_glorybringer")
 }
 
 /// A single-faced creature card named `name`, built from [`template_card`].

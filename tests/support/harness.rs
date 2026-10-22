@@ -74,14 +74,37 @@ impl Harness {
         }
     }
 
+    /// Feeds the next background event to the app.
+    pub async fn next_event(&mut self) {
+        let event = tokio::time::timeout(Duration::from_secs(5), self.background.recv())
+            .await
+            .expect("a background event within 5 s")
+            .expect("the channel stays open");
+        self.app.handle_event(event);
+    }
+
+    /// Returns the screen as text, one line per row.
+    pub fn screen(&self) -> String {
+        let backend = self.render();
+        let buffer = backend.buffer();
+        let width = usize::from(buffer.area.width);
+        buffer
+            .content()
+            .chunks(width)
+            .map(|row| row.iter().map(|cell| cell.symbol()).collect::<String>())
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
+    /// Returns the status line.
+    pub fn status_line(&self) -> String {
+        self.screen().lines().last().unwrap_or_default().to_owned()
+    }
+
     /// Feeds background events to the app until no batch is running.
     pub async fn settle(&mut self) {
         while self.app.is_loading() {
-            let event = tokio::time::timeout(Duration::from_secs(5), self.background.recv())
-                .await
-                .expect("a background event within 5 s")
-                .expect("the channel stays open");
-            self.app.handle_event(event);
+            self.next_event().await;
         }
     }
 
