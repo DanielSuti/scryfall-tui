@@ -24,3 +24,4 @@ All notable changes to this project are documented in this file, newest release 
 - Keymaps picker on `<leader>sk` listing every command with its keys. Choosing one runs it.
 - Request throttle that spaces request starts per bucket and pauses every bucket after a rate-limit response.
 - Card domain model: faces joined with ` // `, `—` for a face without a cost, card types without supertypes or subtypes, and format legalities. An ignored test checks the supertype list against Scryfall.
+- Parser from Scryfall Card objects to domain cards, tested on recorded cards of the normal, transform, modal double-faced, adventure, split and land layouts.
