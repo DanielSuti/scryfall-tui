@@ -11,3 +11,4 @@ All notable changes to this project are documented in this file, newest release 
 - Terminal UI shell: raw-mode terminal setup and restore, an async event loop, and a status line showing the mode. `Q` quits.
 - Display-width truncation helper that marks cut text with `...`.
 - Command registry: named commands with a description, scope, optional status-line hint and handler.
+- Key notation parser for sequences such as `<leader>ss`, `gg` and `<C-d>`, matched against normalised terminal key events.
