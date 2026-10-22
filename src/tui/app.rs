@@ -12,12 +12,14 @@ use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
 use crate::tui::keymap::sequence::Key;
 use crate::tui::layout::{
-    DETAIL_SCOPE, FULL_DETAIL_SCOPE, HISTORY_SCOPE, Panel, RESULTS_SCOPE, SEARCH_BAR_SCOPE,
-    SPLIT_SCOPE, ScreenAreas, panel_block,
+    DETAIL_SCOPE, FULL_DETAIL_SCOPE, HISTORY_SCOPE, PROMPT_SCOPE, Panel, RESULTS_SCOPE,
+    SEARCH_BAR_SCOPE, SPLIT_SCOPE, ScreenAreas, panel_block,
 };
 use crate::tui::main_panel::{Back, MainView};
+use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
+use crate::tui::widgets::pane_search::{Direction, Pane, find};
 use crate::tui::widgets::query_input::QueryInput;
-use crate::tui::widgets::status_line::StatusLine;
+use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
 use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup};
 
 /// The key that `<leader>` stands for.
@@ -45,6 +47,14 @@ pub const SPLIT: CommandId = CommandId("main.split");
 pub const BACK: CommandId = CommandId("main.back");
 /// Steps back from the results, which quits.
 pub const QUIT_FROM_RESULTS: CommandId = CommandId("main.quit");
+/// Opens the `/` prompt to search the focused panel.
+pub const SEARCH_PANE: CommandId = CommandId("pane.search");
+/// Runs the search typed in the `/` prompt.
+pub const RUN_PANE_SEARCH: CommandId = CommandId("pane.search.run");
+/// Jumps to the next match of the last `/` search.
+pub const NEXT_MATCH: CommandId = CommandId("pane.search.next");
+/// Jumps to the previous match of the last `/` search.
+pub const PREVIOUS_MATCH: CommandId = CommandId("pane.search.previous");
 
 /// An input to the application, from the terminal, a timer or a background task.
 #[derive(Debug, Clone)]
@@ -71,6 +81,11 @@ pub struct App {
     focus: Panel,
     history_overlay: bool,
     main_view: MainView,
+    results: ItemList,
+    history: ItemList,
+    prompt: Option<QueryInput>,
+    last_pattern: Option<String>,
+    message: Option<StatusMessage>,
 }
 
 impl Default for App {
@@ -98,6 +113,11 @@ impl App {
             focus: Panel::Main,
             history_overlay: false,
             main_view: MainView::Results,
+            results: ItemList::new(),
+            history: ItemList::new(),
+            prompt: None,
+            last_pattern: None,
+            message: None,
         };
         register_app_commands(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
@@ -209,8 +229,16 @@ impl App {
         }
     }
 
-    /// Returns the scope of the focused panel.
+    /// Returns the message shown in the status line, if any.
+    pub fn message(&self) -> Option<&StatusMessage> {
+        self.message.as_ref()
+    }
+
+    /// Returns the scope of the focused panel, or of the `/` prompt while it is open.
     pub fn focused_scope(&self) -> Scope {
+        if self.prompt.is_some() {
+            return PROMPT_SCOPE;
+        }
         match self.focus {
             Panel::SearchBar => SEARCH_BAR_SCOPE,
             Panel::History => HISTORY_SCOPE,
@@ -259,6 +287,7 @@ impl App {
         let Some(key) = Key::from_event(&event) else {
             return;
         };
+        self.message = None;
         let scopes = self.active_scopes();
         match self.dispatcher.feed(&self.keymap, self.mode, &scopes, key) {
             Dispatch::Matched(id) => {
@@ -271,10 +300,93 @@ impl App {
             Dispatch::NoMatch(_) => {
                 self.which_key.clear();
                 if self.mode == Mode::Insert {
-                    self.input.handle_key(event);
+                    match self.prompt.as_mut() {
+                        Some(prompt) => prompt.handle_key(event),
+                        None => self.input.handle_key(event),
+                    };
                 }
             }
         }
+    }
+
+    /// Returns the number of text rows inside `panel` for the last known terminal size.
+    fn viewport(&self, panel: Panel) -> usize {
+        let areas = self.areas();
+        let rect = match panel {
+            Panel::SearchBar => Some(areas.search),
+            Panel::History => areas.history.or(areas.overlay),
+            Panel::Main => Some(areas.main),
+            Panel::Detail => areas.detail,
+        };
+        rect.map_or(0, |r| usize::from(r.height.saturating_sub(2)))
+    }
+
+    /// Returns the focused panel's searchable, navigable content and its viewport height, or
+    /// `None` for a panel without such content.
+    fn focused_pane(&mut self) -> Option<(&mut dyn Pane, usize)> {
+        let viewport = self.viewport(self.focus);
+        match (self.focus, self.main_view) {
+            (Panel::Main, MainView::Results | MainView::Split) => {
+                Some((&mut self.results, viewport))
+            }
+            (Panel::History, _) => Some((&mut self.history, viewport)),
+            _ => None,
+        }
+    }
+
+    fn motion(&mut self, motion: Motion) -> MotionOutcome {
+        self.focused_pane()
+            .map(|(pane, viewport)| pane.apply_motion(motion, viewport))
+            .unwrap_or_default()
+    }
+
+    fn open_prompt(&mut self) {
+        self.prompt = Some(QueryInput::new());
+        self.enter_insert_mode();
+    }
+
+    fn run_prompt(&mut self) {
+        let pattern = self
+            .prompt
+            .take()
+            .map(|p| p.value().to_owned())
+            .unwrap_or_default();
+        self.mode = Mode::Normal;
+        if pattern.is_empty() {
+            return;
+        }
+        self.last_pattern = Some(pattern);
+        self.repeat_search(Direction::Forward);
+    }
+
+    fn repeat_search(&mut self, direction: Direction) {
+        let Some(pattern) = self.last_pattern.clone() else {
+            self.message = Some(StatusMessage::error("No previous search pattern"));
+            return;
+        };
+        let Some((pane, viewport)) = self.focused_pane() else {
+            self.message = Some(StatusMessage::error("Nothing to search in this panel"));
+            return;
+        };
+        let found = find(
+            pane.search_lines(),
+            &pattern,
+            pane.current_line(),
+            direction,
+        );
+        if let Some(found) = found {
+            pane.jump_to(found.index, viewport);
+        }
+        self.message = match found {
+            None => Some(StatusMessage::error(format!(
+                "Pattern not found: {pattern}"
+            ))),
+            Some(found) if found.wrapped => Some(StatusMessage::info(match direction {
+                Direction::Forward => "Search hit the end, continued at the start",
+                Direction::Backward => "Search hit the start, continued at the end",
+            })),
+            Some(_) => None,
+        };
     }
 
     /// Switches to insert mode, so unbound keys edit the focused text input.
@@ -298,15 +410,9 @@ impl App {
         );
 
         if let Some(history) = areas.history {
-            frame.render_widget(
-                panel_block(self.title(Panel::History), focused(Panel::History)),
-                history,
-            );
+            self.render_list(frame, &self.history, Panel::History, history);
         }
-        frame.render_widget(
-            panel_block(self.title(Panel::Main), focused(Panel::Main)),
-            areas.main,
-        );
+        self.render_list(frame, &self.results, Panel::Main, areas.main);
         if let Some(detail) = areas.detail {
             frame.render_widget(
                 panel_block(self.title(Panel::Detail), focused(Panel::Detail)),
@@ -315,18 +421,29 @@ impl App {
         }
         if let Some(overlay) = areas.overlay {
             frame.render_widget(ratatui::widgets::Clear, overlay);
-            frame.render_widget(
-                panel_block(self.title(Panel::History), focused(Panel::History)),
-                overlay,
-            );
+            self.render_list(frame, &self.history, Panel::History, overlay);
         }
 
-        let hints = self.hints_for(self.focused_scope());
-        let panel = self.title(self.focus);
-        frame.render_widget(
-            StatusLine::new(self.mode).section(panel).hints(&hints),
-            areas.status,
-        );
+        if let Some(prompt) = &self.prompt {
+            let status = areas.status;
+            frame.render_widget(ratatui::widgets::Paragraph::new("/"), status);
+            let input = Rect {
+                x: status.x + 1,
+                width: status.width.saturating_sub(1),
+                ..status
+            };
+            prompt.render(frame, input, true);
+        } else {
+            let hints = self.hints_for(self.focused_scope());
+            let panel = self.title(self.focus);
+            frame.render_widget(
+                StatusLine::new(self.mode)
+                    .section(panel)
+                    .message(self.message.as_ref())
+                    .hints(&hints),
+                areas.status,
+            );
+        }
         let entries = self.which_key_entries();
         if !entries.is_empty() {
             let body = Rect {
@@ -335,6 +452,16 @@ impl App {
             };
             WhichKeyPopup::new(&entries).render(body, frame.buffer_mut());
         }
+    }
+
+    fn render_list(&self, frame: &mut Frame, list: &ItemList, panel: Panel, area: Rect) {
+        let focused = self.focus == panel;
+        let block = panel_block(self.title(panel), focused);
+        let inner = block.inner(area);
+        frame.render_widget(block, area);
+        list.render(inner, frame.buffer_mut(), focused, |index, width| {
+            ratatui::text::Line::from(crate::tui::text::truncate(&list.rows()[index], width))
+        });
     }
 
     fn title(&self, panel: Panel) -> String {
@@ -438,6 +565,7 @@ fn register_app_commands(
         &["<Esc>"],
         command(NORMAL_MODE, global, "Back to normal mode", None, |app| {
             app.mode = Mode::Normal;
+            app.prompt = None;
             app.dispatcher.reset();
         }),
     )?;
@@ -494,7 +622,100 @@ fn register_app_commands(
             },
         ),
     )?;
-    register_main_panel_commands(&mut reg)
+    register_main_panel_commands(&mut reg)?;
+    register_pane_commands(&mut reg)
+}
+
+fn register_pane_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {
+    let motion = |id: &'static str, description: &'static str, run: fn(&mut App)| {
+        command(CommandId(id), Scope::GLOBAL, description, None, run)
+    };
+    let normal = Mode::Normal;
+    reg.add(
+        normal,
+        &["j"],
+        motion("pane.down", "Next row", |app| {
+            app.motion(Motion::Down);
+        }),
+    )?;
+    reg.add(
+        normal,
+        &["k"],
+        motion("pane.up", "Previous row", |app| {
+            app.motion(Motion::Up);
+        }),
+    )?;
+    reg.add(
+        normal,
+        &["gg"],
+        motion("pane.top", "First row", |app| {
+            app.motion(Motion::Top);
+        }),
+    )?;
+    reg.add(
+        normal,
+        &["G"],
+        motion("pane.bottom", "Last row", |app| {
+            app.motion(Motion::Bottom);
+        }),
+    )?;
+    reg.add(
+        normal,
+        &["<C-d>"],
+        motion("pane.half_down", "Half a page down", |app| {
+            app.motion(Motion::HalfPageDown);
+        }),
+    )?;
+    reg.add(
+        normal,
+        &["<C-u>"],
+        motion("pane.half_up", "Half a page up", |app| {
+            app.motion(Motion::HalfPageUp);
+        }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["/"],
+        command(
+            SEARCH_PANE,
+            Scope::GLOBAL,
+            "Search the focused panel",
+            None,
+            App::open_prompt,
+        ),
+    )?;
+    reg.add(
+        Mode::Insert,
+        &["<CR>"],
+        command(
+            RUN_PANE_SEARCH,
+            PROMPT_SCOPE,
+            "Run the search",
+            None,
+            App::run_prompt,
+        ),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["n"],
+        command(NEXT_MATCH, Scope::GLOBAL, "Next match", None, |app| {
+            app.repeat_search(Direction::Forward);
+        }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["N"],
+        command(
+            PREVIOUS_MATCH,
+            Scope::GLOBAL,
+            "Previous match",
+            None,
+            |app| {
+                app.repeat_search(Direction::Backward);
+            },
+        ),
+    )?;
+    Ok(())
 }
 
 fn register_main_panel_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {
@@ -792,6 +1013,93 @@ mod tests {
         assert_eq!(app.hints_for(app.focused_scope()), ["d detail", "q back"]);
         press(&mut app, "d");
         assert_eq!(app.hints_for(app.focused_scope()), ["⏎ split", "q back"]);
+    }
+
+    fn rows(prefix: &str, count: usize) -> Vec<String> {
+        (0..count).map(|i| format!("{prefix} {i:02}")).collect()
+    }
+
+    #[test]
+    fn slash_finds_a_match_beyond_the_visible_rows() {
+        let mut app = sized(112, 12);
+        let mut rows = rows("Card", 30);
+        rows[20] = "Glorybringer".into();
+        app.results.set_rows(rows);
+        let viewport = app.viewport(Panel::Main);
+        assert!(viewport < 20, "the match starts off screen");
+        press(&mut app, "/glory<CR>");
+        assert_eq!(app.mode(), Mode::Normal);
+        assert_eq!(app.results.cursor(), 20);
+        assert!(app.results.visible_range(viewport).contains(&20));
+        assert_eq!(app.message(), None);
+    }
+
+    #[test]
+    fn n_and_upper_n_wrap_around() {
+        let mut app = sized(112, 12);
+        app.results.set_rows(vec![
+            "Dragon A".into(),
+            "Sol Ring".into(),
+            "Dragon B".into(),
+        ]);
+        press(&mut app, "/dragon<CR>");
+        assert_eq!(app.results.cursor(), 2);
+        press(&mut app, "n");
+        assert_eq!(app.results.cursor(), 0);
+        assert!(
+            app.message()
+                .unwrap()
+                .text
+                .contains("continued at the start")
+        );
+        press(&mut app, "N");
+        assert_eq!(app.results.cursor(), 2);
+        assert!(app.message().unwrap().text.contains("continued at the end"));
+    }
+
+    #[test]
+    fn a_miss_keeps_the_cursor_and_says_so() {
+        let mut app = sized(112, 12);
+        app.results.set_rows(rows("Card", 5));
+        press(&mut app, "jj/zzz<CR>");
+        assert_eq!(app.results.cursor(), 2);
+        assert_eq!(app.message().unwrap().text, "Pattern not found: zzz");
+    }
+
+    #[test]
+    fn only_the_focused_panel_is_searched() {
+        let mut app = sized(112, 12);
+        app.results.set_rows(rows("Card", 5));
+        app.history
+            .set_rows(vec!["t:dragon".into(), "o:draw".into()]);
+        press(&mut app, "/draw<CR>");
+        assert_eq!(app.message().unwrap().text, "Pattern not found: draw");
+        press(&mut app, "2n");
+        assert_eq!(app.history.cursor(), 1);
+        assert_eq!(app.results.cursor(), 0);
+    }
+
+    #[test]
+    fn escape_cancels_the_prompt() {
+        let mut app = sized(112, 12);
+        app.results.set_rows(rows("Card", 5));
+        press(&mut app, "/Card<Space>03<Esc>");
+        assert_eq!(app.mode(), Mode::Normal);
+        assert_eq!(app.results.cursor(), 0);
+        press(&mut app, "n");
+        assert_eq!(app.message().unwrap().text, "No previous search pattern");
+    }
+
+    #[test]
+    fn motions_move_the_focused_list() {
+        let mut app = sized(112, 12);
+        app.results.set_rows(rows("Card", 30));
+        press(&mut app, "jjj");
+        assert_eq!(app.results.cursor(), 3);
+        press(&mut app, "G");
+        assert_eq!(app.results.cursor(), 29);
+        press(&mut app, "gg");
+        assert_eq!(app.results.cursor(), 0);
     }
 
     #[test]

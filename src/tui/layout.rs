@@ -50,6 +50,8 @@ pub const RESULTS_SCOPE: Scope = Scope("results");
 pub const SPLIT_SCOPE: Scope = Scope("split");
 /// Key bindings that apply while the full detail replaces the results.
 pub const FULL_DETAIL_SCOPE: Scope = Scope("full_detail");
+/// Key bindings that apply while the `/` prompt is open.
+pub const PROMPT_SCOPE: Scope = Scope("prompt");
 /// Key bindings that apply while the detail of the split has focus.
 pub const DETAIL_SCOPE: Scope = Scope("detail");
 
