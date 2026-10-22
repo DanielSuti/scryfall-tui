@@ -45,10 +45,22 @@ pub const RUN_PANE_SEARCH: CommandId = CommandId("pane.search.run");
 pub const NEXT_MATCH: CommandId = CommandId("pane.search.next");
 /// Jumps to the previous match of the last `/` search.
 pub const PREVIOUS_MATCH: CommandId = CommandId("pane.search.previous");
+/// Shows the next card in the full detail.
+pub const NEXT_CARD: CommandId = CommandId("detail.next_card");
+/// Shows the previous card in the full detail.
+pub const PREVIOUS_CARD: CommandId = CommandId("detail.previous_card");
 /// Opens the keymaps picker.
 pub const KEYMAPS: CommandId = CommandId("keymaps.picker");
 
 impl App {
+    /// Moves the results cursor while the full detail is shown, loading more results at the end.
+    fn step_card(&mut self, motion: Motion) {
+        let viewport = self.viewport(Panel::Main);
+        if self.results.list_mut().apply(motion, viewport).end_reached {
+            self.load_more();
+        }
+    }
+
     fn open_keymaps_picker(&mut self) {
         self.picker = Some(keymaps_picker(&self.commands, &self.keymap));
         self.enter_insert_mode();
@@ -337,5 +349,27 @@ fn register_main_panel_commands(reg: &mut Registrar<'_>) -> Result<(), Registrat
     )?;
     reg.bind(normal, FULL_DETAIL_SCOPE, &["q"], BACK)?;
     reg.bind(normal, DETAIL_SCOPE, &["q"], BACK)?;
+    reg.add(
+        normal,
+        &["J"],
+        command(
+            NEXT_CARD,
+            FULL_DETAIL_SCOPE,
+            "Next card",
+            Some("next"),
+            |app| app.step_card(Motion::Down),
+        ),
+    )?;
+    reg.add(
+        normal,
+        &["K"],
+        command(
+            PREVIOUS_CARD,
+            FULL_DETAIL_SCOPE,
+            "Previous card",
+            Some("prev"),
+            |app| app.step_card(Motion::Up),
+        ),
+    )?;
     Ok(())
 }

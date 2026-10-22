@@ -38,13 +38,18 @@ impl Harness {
     /// Starts a fake holding `cards` with `page_size` cards per page, and an app of 112 by 24
     /// cells loading `max_pages` pages per batch.
     pub async fn start(cards: Vec<Value>, page_size: usize, max_pages: u32) -> Self {
+        let mut config = Config::default();
+        config.search.max_pages = NonZeroU32::new(max_pages).unwrap();
+        Self::start_with_config(cards, page_size, config).await
+    }
+
+    /// Like [`Harness::start`], with `config`.
+    pub async fn start_with_config(cards: Vec<Value>, page_size: usize, config: Config) -> Self {
         let (server, fake) = FakeScryfall::start(cards).await;
         fake.set_page_size(page_size);
         let client =
             ScryfallClient::with_base_url(server.uri().parse().unwrap(), NO_LIMITS).unwrap();
         let (events, background) = tokio::sync::mpsc::unbounded_channel();
-        let mut config = Config::default();
-        config.search.max_pages = NonZeroU32::new(max_pages).unwrap();
         let services = Services {
             search: Arc::new(ApiSearch::new(client)),
             events,

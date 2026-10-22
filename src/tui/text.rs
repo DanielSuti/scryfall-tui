@@ -39,6 +39,30 @@ pub fn truncate(text: &str, width: usize) -> String {
     out
 }
 
+/// Breaks `text` into lines of at most `width` columns. Existing line breaks are kept, words
+/// are moved to the next line whole, and a word longer than `width` is cut with [`truncate`].
+pub fn wrap(text: &str, width: usize) -> Vec<String> {
+    let width = width.max(1);
+    let mut lines = Vec::new();
+    for paragraph in text.split('\n') {
+        let mut line = String::new();
+        for word in paragraph.split_whitespace() {
+            let word = truncate(word, width);
+            let needed =
+                display_width(&line) + usize::from(!line.is_empty()) + display_width(&word);
+            if !line.is_empty() && needed > width {
+                lines.push(std::mem::take(&mut line));
+            }
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(&word);
+        }
+        lines.push(line);
+    }
+    lines
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -69,6 +93,19 @@ mod tests {
         let name = "Lim-Dûl the Necromancer";
         assert_eq!(truncate(name, 23), name);
         assert_eq!(truncate(name, 10), "Lim-Dûl...");
+    }
+
+    #[test]
+    fn wrap_moves_whole_words_and_keeps_line_breaks() {
+        assert_eq!(
+            wrap("Flying, haste\nYou may exert this creature", 12),
+            ["Flying,", "haste", "You may", "exert this", "creature"]
+        );
+        assert_eq!(wrap("", 10), [""]);
+        assert_eq!(wrap("Abracadabrantesque", 8), ["Abrac..."]);
+        for line in wrap("one two three four five six seven", 9) {
+            assert!(display_width(&line) <= 9, "{line}");
+        }
     }
 
     #[test]

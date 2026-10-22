@@ -242,7 +242,10 @@ fn hints_follow_the_main_view() {
     press(&mut app, "<CR>");
     assert_eq!(app.hints_for(app.focused_scope()), ["d detail", "q back"]);
     press(&mut app, "d");
-    assert_eq!(app.hints_for(app.focused_scope()), ["⏎ split", "q back"]);
+    assert_eq!(
+        app.hints_for(app.focused_scope()),
+        ["⏎ split", "q back", "J next", "K prev"]
+    );
 }
 
 fn rows(prefix: &str, count: usize) -> Vec<String> {

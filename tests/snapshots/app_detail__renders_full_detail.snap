@@ -1,0 +1,28 @@
+---
+source: tests/app_detail.rs
+expression: h.render()
+---
+"╭ [1] Search ──────────────────────────────────────────────────────────────────────────────────────────────────╮"
+"│ e                                                                                                            │"
+"╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+"╭ [2] History ─────────────╮┏ [3] Detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+"│                          │┃ Delver of Secrets                                                             {U}┃"
+"│                          │┃ Creature — Human Wizard                                                       1/1┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ At the beginning of your upkeep, look at the top card of your library. You may   ┃"
+"│                          │┃ reveal that card. If an instant or sorcery card is revealed this way, transform  ┃"
+"│                          │┃ this creature.                                                                   ┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ //                                                                               ┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ Insectile Aberration                                                            —┃"
+"│                          │┃ Creature — Human Insect                                                       3/2┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ Flying                                                                           ┃"
+"│                          │┃                                                                                  ┃"
+"│                          │┃ "Unfortunately, all my test animals have died or escaped, so I shall be the final┃"
+"│                          │┃ subject. I feel no fear. This is a momentous night."                             ┃"
+"│                          │┃ —Laboratory notes, final entry                                                   ┃"
+"│                          │┃                                                                                  ┃"
+"╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
+" NORMAL  │ [3] Detail │ 3 of 3 loaded                                        ⏎ split · q back · J next · K prev "

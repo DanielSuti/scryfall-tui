@@ -19,6 +19,7 @@ use tokio::time::Instant;
 use crate::app::command::{CommandId, CommandRegistry, Scope};
 use crate::app::config::Config;
 use crate::app::results_cache::ResultsCache;
+use crate::app::selection::Selection;
 use crate::domain::search_results::{SearchPage, SearchResults};
 use crate::search::CardSearch;
 use crate::tui::keymap::bindings::Keymap;
@@ -32,6 +33,7 @@ use crate::tui::layout::{
 use crate::tui::main_panel::{Back, MainView};
 use crate::tui::picker::picker::{Picker, PickerOutcome};
 use crate::tui::text::truncate;
+use crate::tui::views::detail::DetailView;
 use crate::tui::views::results::{ResultsView, load_summary};
 use crate::tui::views::search_bar::SearchBar;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
@@ -110,6 +112,9 @@ pub struct App {
     main_view: MainView,
     search_bar: SearchBar,
     results: ResultsView,
+    detail: DetailView,
+    format_warning: Option<String>,
+    formats_checked: bool,
     history: ItemList,
     cache: ResultsCache,
     batches_running: usize,
@@ -156,6 +161,9 @@ impl App {
             main_view: MainView::Results,
             search_bar: SearchBar::new(),
             results: ResultsView::new(),
+            detail: DetailView::new(),
+            format_warning: None,
+            formats_checked: false,
             history: ItemList::new(),
             cache: ResultsCache::new(),
             batches_running: 0,
@@ -219,6 +227,27 @@ impl App {
         self.results.list().cursor()
     }
 
+    /// Returns the card under the results cursor, or `None` when no results are shown.
+    pub fn selection(&self) -> Option<Selection<'_>> {
+        let results = self.displayed_results()?;
+        let index = self.results.list().cursor();
+        Some(Selection {
+            card: results.cards().get(index)?,
+            index,
+            query: results.query(),
+        })
+    }
+
+    /// Returns the lines of the detail view.
+    pub fn detail_lines(&self) -> &[String] {
+        self.detail.lines()
+    }
+
+    /// Returns the problem found in `detail.formats`, if any.
+    pub fn format_warning(&self) -> Option<&str> {
+        self.format_warning.as_deref()
+    }
+
     /// Returns true while a background search batch is running.
     pub fn is_loading(&self) -> bool {
         self.batches_running > 0
@@ -231,6 +260,51 @@ impl App {
             AppEvent::Tick => self.which_key.tick(Instant::now()),
             AppEvent::Resize(width, height) => self.area = Rect::new(0, 0, width, height),
             AppEvent::Search { query, update } => self.handle_search_update(&query, update),
+        }
+        self.sync_detail();
+    }
+
+    /// Returns the rectangle the detail is drawn in: the split's detail panel, or the main
+    /// panel in the full detail.
+    fn detail_rect(&self, areas: &ScreenAreas) -> Option<Rect> {
+        match self.main_view {
+            MainView::Results => None,
+            MainView::Split => areas.detail,
+            MainView::FullDetail => Some(areas.main),
+        }
+    }
+
+    /// Formats the selected card for the detail's current width.
+    fn sync_detail(&mut self) {
+        let Some(rect) = self.detail_rect(&self.areas()) else {
+            return;
+        };
+        let width = usize::from(rect.width.saturating_sub(3));
+        let card = self.selection().map(|s| s.card.clone());
+        let formats = self.config.detail.formats.clone();
+        self.detail.show(card.as_ref(), &formats, width);
+    }
+
+    /// Checks `detail.formats` against the formats the first loaded card reports.
+    fn check_formats(&mut self, card: &crate::domain::card::Card) {
+        if self.formats_checked {
+            return;
+        }
+        self.formats_checked = true;
+        let reported: Vec<&str> = card.legalities().formats().collect();
+        let unknown: Vec<String> = self
+            .config
+            .detail
+            .formats
+            .iter()
+            .filter(|f| !reported.contains(&f.as_str()))
+            .map(|f| format!("`{f}`"))
+            .collect();
+        if !unknown.is_empty() {
+            self.format_warning = Some(format!(
+                "detail.formats: Scryfall reports no format {}",
+                unknown.join(", ")
+            ));
         }
     }
 
@@ -418,8 +492,11 @@ impl App {
             (Panel::Main, MainView::Results | MainView::Split) => {
                 Some((&mut self.results, viewport))
             }
+            (Panel::Main, MainView::FullDetail) | (Panel::Detail, _) => {
+                Some((&mut self.detail, viewport))
+            }
             (Panel::History, _) => Some((&mut self.history, viewport)),
-            _ => None,
+            (Panel::SearchBar, _) => None,
         }
     }
 
@@ -469,13 +546,17 @@ impl App {
         let block = panel_block(self.title(Panel::Main), focused(Panel::Main));
         let inner = block.inner(areas.main);
         frame.render_widget(block, areas.main);
-        self.results
-            .render(inner, frame.buffer_mut(), focused(Panel::Main));
+        if self.main_view == MainView::FullDetail {
+            self.detail.render(inner, frame.buffer_mut());
+        } else {
+            self.results
+                .render(inner, frame.buffer_mut(), focused(Panel::Main));
+        }
         if let Some(detail) = areas.detail {
-            frame.render_widget(
-                panel_block(self.title(Panel::Detail), focused(Panel::Detail)),
-                detail,
-            );
+            let block = panel_block(self.title(Panel::Detail), focused(Panel::Detail));
+            let inner = block.inner(detail);
+            frame.render_widget(block, detail);
+            self.detail.render(inner, frame.buffer_mut());
         }
         if let Some(overlay) = areas.overlay {
             frame.render_widget(Clear, overlay);
@@ -494,10 +575,16 @@ impl App {
         } else {
             let hints = self.hints_for(self.focused_scope());
             let mut status = StatusLine::new(self.mode).section(self.title(self.focus));
-            let warnings = self.displayed_results().and_then(|results| {
-                (!results.warnings().is_empty())
-                    .then(|| StatusMessage::info(results.warnings().join(" ")))
-            });
+            let warnings = self
+                .format_warning
+                .as_ref()
+                .map(StatusMessage::error)
+                .or_else(|| {
+                    self.displayed_results().and_then(|results| {
+                        (!results.warnings().is_empty())
+                            .then(|| StatusMessage::info(results.warnings().join(" ")))
+                    })
+                });
             if let Some(results) = self.displayed_results() {
                 status = status.section(load_summary(results));
             }

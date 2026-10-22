@@ -112,6 +112,10 @@ impl App {
         let Some(results) = self.cache.get_mut(query) else {
             return;
         };
+        let first_card = match &update {
+            SearchUpdate::Page(page) => page.cards.first().cloned(),
+            _ => None,
+        };
         match update {
             SearchUpdate::Page(page) => results.apply(page),
             SearchUpdate::RateLimited(pause) => {
@@ -132,6 +136,9 @@ impl App {
                 results.finish_batch();
                 self.batches_running = self.batches_running.saturating_sub(1);
             }
+        }
+        if let Some(card) = first_card {
+            self.check_formats(&card);
         }
         if displayed {
             self.refresh_results(query);

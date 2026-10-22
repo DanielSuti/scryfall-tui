@@ -115,8 +115,8 @@ impl ResultsView {
                 .unwrap_or(0)
         };
         let gap = display_width(GAP);
-        let cost = widest(|r| &r.cost).min(width / 4);
         if width < TYPES_COLUMN_MIN_WIDTH {
+            let cost = widest(|r| &r.cost).min(width / 3);
             let name = width.saturating_sub(cost + gap);
             return Widths {
                 name,
@@ -124,6 +124,7 @@ impl ResultsView {
                 types: 0,
             };
         }
+        let cost = widest(|r| &r.cost).min(width / 4);
         let types = widest(|r| &r.types).min(width / 4);
         let name = width.saturating_sub(cost + types + 2 * gap);
         Widths { name, cost, types }
