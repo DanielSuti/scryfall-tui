@@ -23,3 +23,4 @@ All notable changes to this project are documented in this file, newest release 
 - Fuzzy picker popup that filters labelled items as you type, moves with `<C-j>`/`<C-k>` and chooses with `<Enter>`.
 - Keymaps picker on `<leader>sk` listing every command with its keys. Choosing one runs it.
 - Request throttle that spaces request starts per bucket and pauses every bucket after a rate-limit response.
+- Card domain model: faces joined with ` // `, `—` for a face without a cost, card types without supertypes or subtypes, and format legalities. An ignored test checks the supertype list against Scryfall.

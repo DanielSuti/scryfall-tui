@@ -19,6 +19,8 @@ unicode-width = "0.2"
 
 [dev-dependencies]
 insta = "1.49"
+reqwest = { version = "0.13", default-features = false, features = ["rustls", "json"] }
+serde = { version = "1", features = ["derive"] }
 tokio = { version = "1.54", features = ["test-util"] }
 
 [lints.rust]
