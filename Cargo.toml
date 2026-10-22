@@ -1,0 +1,17 @@
+[package]
+name = "scry"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "LazyVim-style terminal UI for Scryfall card search"
+publish = false
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+
+[lints.rust]
+missing_docs = "warn"
+
+[lints.clippy]
+missing_errors_doc = "warn"
+missing_panics_doc = "warn"
