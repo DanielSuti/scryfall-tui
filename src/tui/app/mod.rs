@@ -351,7 +351,7 @@ impl App {
         let rulings = card.as_ref().and_then(|c| self.rulings_for(c)).cloned();
         let formats = self.config.detail.formats.clone();
         self.detail
-            .show(card.as_ref(), &formats, rulings.as_ref(), width);
+            .show(card.as_ref(), &formats, rulings.as_ref(), None, width);
     }
 
     /// Checks `detail.formats` against the formats the first loaded card reports.
