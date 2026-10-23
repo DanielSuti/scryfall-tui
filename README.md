@@ -159,6 +159,10 @@ max_entries = 100               # entries kept, at least 1
 [detail]
 # formats whose legality the detail shows, in this order; [] hides the legalities
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
+
+[detail.rulings]
+mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d
+pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
 ```
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
