@@ -113,8 +113,10 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 | | `<leader>ss` | Focus the search bar and clear it, in insert mode. |
 | | `<leader>sk` | Keymaps picker. |
 | | `2` / `3` / `0` | Focus history (an overlay when hidden), the main panel, or the detail (split only). |
-| | `/`, `n`, `N` | Search the focused panel's text. |
+| | `/`, `n`, `N` | Search the focused panel's text. Matches light up as you type and the cursor moves to the first one; `<Enter>` keeps the search, `<Esc>` in the prompt cancels it. A matching current line shows its position among the matching lines at its right end, such as `[2/9]`, as in yazi. Only the label itself has a magenta background, with text in the terminal's background color. |
+| | `<Esc>` | Clear the search highlight. |
 | | `,` then a letter | Sort the results. See below. |
+| | `s` | Flash jump to any text on screen. See below. |
 | | `Q` | Quit. |
 | | `+`, `_` | Reserved and unbound. |
 | Search bar, insert mode | `<CR>` | Run the search. It enters history, and focus moves to the results. |
@@ -135,6 +137,17 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 ## Truncation
 
 Text that does not fit its column ends in `...`. Anything after it on the same line, such as a history count, stays visible. One helper does this everywhere text is cut.
+
+## Flash jumps
+
+`s` in normal mode, in any panel, starts a flash jump, as in LazyVim's flash.nvim. All panel text is dimmed and the status line shows `⚡`. Type a few characters: every place on screen showing them lights up, in the search bar, the history, the results and the detail. Each gets a one-letter label on the character after it. Type a label to jump there: the focus moves to that panel and its cursor to that line. A jump into the search bar puts the text cursor on the match in insert mode; a jump into the detail scrolls that line to the top.
+
+- **`<Enter>`** jumps to the match nearest the cursor, drawn in bright yellow.
+- **Colors** come from your terminal's palette, so flash follows its theme, in the hues LazyVim uses: grey text, blue matches, a bright yellow nearest match and bright red labels. Matches and labels show dark text on their color, as in LazyVim, so they stay readable on light palette colors.
+- **Letters that would continue a match** are never labels, so typing on narrows the matches.
+- **Labels** go to the nearest matches first, `asdfghjkl...` and then uppercase. Matches beyond the labels get one once you type more.
+- **`<BS>`** deletes a character, and **`<Esc>`** closes flash without moving.
+- Matching ignores case unless you type an uppercase letter.
 
 ## Sorting
 
@@ -165,5 +178,13 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 - **Search bar** shows the query as typed. When `search.base` is set, its terms appear dimmed on the right of the border as `+ game:paper -is:funny`, because every search adds them.
 
 - **Results rows** show name, mana cost and card types. Supertypes and subtypes are left out. Double-faced cards show both faces joined with ` // `, and a face with no mana cost shows `—`.
-- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`.
+- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`, then the rulings. Each ruling's date stands in a column left of its text, or above it below 36 columns:
+
+  ```
+  Rulings (5)
+  2017-04-18  You can’t exert a creature unless
+              an effect allows you to do so.
+  ```
+
+  Rulings take one Scryfall request per card and are kept for the session; printings of one card share them. With `detail.rulings.mode = "auto"` they are fetched in the split and the full detail once the cursor has rested on the card for `detail.rulings.pause_ms`, so holding `j` doesn't send a request per card. With `"full_detail"` they are fetched only in the full detail, as soon as it opens, and the split shows them only when they were already fetched. Meanwhile the detail says `Rulings: loading...`, a card without rulings says `No rulings`, and a failure shows its message; the failed fetch is retried when the card is shown again.
 - **History** shows each query and its result count, newest first.

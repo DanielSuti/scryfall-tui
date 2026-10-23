@@ -10,7 +10,7 @@ use crate::search::SearchRequest;
 use crate::tui::text::{display_width, truncate};
 use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::{Navigable, Searchable};
+use crate::tui::widgets::pane_search::{Navigable, PaneSearch, Searchable};
 
 /// Below this many columns the type column is left out, as in the split.
 pub const TYPES_COLUMN_MIN_WIDTH: usize = 60;
@@ -85,8 +85,16 @@ impl ResultsView {
 
     /// Draws the visible rows into `area`, in columns of name, cost and card types. Cells that
     /// don't fit are cut with `...`. When nothing matched, the source's notice is drawn instead.
-    /// The cursor row is highlighted with `theme` when `focused`, and marked otherwise.
-    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool, theme: &Theme) {
+    /// The cursor row is highlighted with `theme` when `focused`, and marked otherwise. The
+    /// matches of `search` are drawn in `theme.find_keyword`.
+    pub fn render(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        focused: bool,
+        theme: &Theme,
+        search: Option<&PaneSearch<'_>>,
+    ) {
         if self.rows.is_empty() {
             if let Some(notice) = &self.notice {
                 let width = usize::from(area.width).saturating_sub(1);
@@ -97,17 +105,18 @@ impl ResultsView {
         }
         let width = usize::from(area.width).saturating_sub(self.list.marker_width());
         let widths = self.column_widths(width);
-        self.list.render(area, buf, focused, theme, |index, _| {
-            let row = &self.rows[index];
-            let mut cells = vec![
-                pad(&truncate(&row.name, widths.name), widths.name),
-                pad(&truncate(&row.cost, widths.cost), widths.cost),
-            ];
-            if widths.types > 0 {
-                cells.push(truncate(&row.types, widths.types));
-            }
-            Line::from(cells.join(GAP))
-        });
+        self.list
+            .render(area, buf, focused, theme, search, |index, _| {
+                let row = &self.rows[index];
+                let mut cells = vec![
+                    pad(&truncate(&row.name, widths.name), widths.name),
+                    pad(&truncate(&row.cost, widths.cost), widths.cost),
+                ];
+                if widths.types > 0 {
+                    cells.push(truncate(&row.types, widths.types));
+                }
+                Line::from(cells.join(GAP))
+            });
     }
 
     fn column_widths(&self, width: usize) -> Widths {
@@ -184,6 +193,10 @@ impl Searchable for ResultsView {
 
     fn jump_to(&mut self, index: usize, viewport: usize) {
         self.list.jump_to(index, viewport);
+    }
+
+    fn first_visible(&self, viewport: usize) -> usize {
+        self.list.first_visible(viewport)
     }
 }
 

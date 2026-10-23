@@ -4,8 +4,9 @@ use thiserror::Error;
 
 use crate::domain::card::{Card, Face};
 use crate::domain::legalities::{Legalities, UnknownLegality};
+use crate::domain::ruling::Ruling;
 use crate::domain::type_line::TypeLine;
-use crate::scryfall::wire::{WireCard, WireFace};
+use crate::scryfall::wire::{WireCard, WireFace, WireRuling};
 
 /// Why a Scryfall card could not be converted.
 #[derive(Debug, Error)]
@@ -84,6 +85,14 @@ fn face_from_wire(face: WireFace) -> Face {
         toughness: face.toughness,
         loyalty: face.loyalty,
         defense: face.defense,
+    }
+}
+
+/// Converts a Ruling object.
+pub fn ruling_from_wire(wire: WireRuling) -> Ruling {
+    Ruling {
+        published_at: wire.published_at,
+        comment: wire.comment,
     }
 }
 

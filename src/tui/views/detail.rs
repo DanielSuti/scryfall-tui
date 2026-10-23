@@ -1,13 +1,18 @@
-//! The detail of one card: every face's text, then the chosen formats' legalities.
+//! The detail of one card: every face's text, the chosen formats' legalities, then the
+//! rulings.
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
 use ratatui::text::Line;
 
 use crate::domain::card::{Card, Face};
+use crate::domain::ruling::{Ruling, RulingsState};
 use crate::tui::text::{display_width, truncate, wrap};
+use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::{Navigable, Searchable};
+use crate::tui::widgets::pane_search::{
+    Navigable, PaneSearch, Searchable, draw_position, highlight,
+};
 
 /// From this width on the legalities are laid out in two columns.
 pub const LEGALITY_TWO_COLUMN_MIN_WIDTH: usize = 50;
@@ -15,11 +20,21 @@ pub const LEGALITY_TWO_COLUMN_MIN_WIDTH: usize = 50;
 const FORMAT_WIDTH: usize = 10;
 /// Columns reserved for a status in the legalities.
 const STATUS_WIDTH: usize = 10;
+/// From this width on each ruling's date stands in a column left of its text.
+pub const RULING_DATE_COLUMN_MIN_WIDTH: usize = 36;
+/// Columns of a ruling's date and the gap after it.
+const DATE_COLUMN_WIDTH: usize = 12;
 
 /// Formats `card` into lines of at most `width` columns: for each face its name and cost,
 /// its full type line and stats, its oracle text and its flavor text, with faces separated
-/// by a `//` line; then the legality of each of `formats` the card reports, in that order.
-pub fn format_card(card: &Card, formats: &[String], width: usize) -> Vec<String> {
+/// by a `//` line; then the legality of each of `formats` the card reports, in that order;
+/// then `rulings`, when given.
+pub fn format_card(
+    card: &Card,
+    formats: &[String],
+    rulings: Option<&RulingsState>,
+    width: usize,
+) -> Vec<String> {
     let mut lines = Vec::new();
     for (index, face) in card.faces().iter().enumerate() {
         if index > 0 {
@@ -55,6 +70,10 @@ pub fn format_card(card: &Card, formats: &[String], width: usize) -> Vec<String>
             lines.extend(legalities.iter().map(|l| l.trim_end().to_owned()));
         }
     }
+    if let Some(rulings) = rulings {
+        lines.push(String::new());
+        format_rulings(rulings, width, &mut lines);
+    }
     lines
         .into_iter()
         .map(|line| truncate(&line, width))
@@ -72,6 +91,46 @@ fn format_face(face: &Face, width: usize, lines: &mut Vec<String>) {
     if let Some(flavor) = &face.flavor_text {
         lines.push(String::new());
         lines.extend(wrap(flavor, width));
+    }
+}
+
+/// Formats `rulings` under a heading with their count. From
+/// [`RULING_DATE_COLUMN_MIN_WIDTH`] on, each date stands left of its text; on narrower
+/// panels it takes a line above it.
+fn format_rulings(rulings: &RulingsState, width: usize, lines: &mut Vec<String>) {
+    let list = match rulings {
+        RulingsState::Loading => return lines.push("Rulings: loading...".to_owned()),
+        RulingsState::Failed(message) => {
+            return lines.extend(wrap(&format!("Rulings: {message}"), width));
+        }
+        RulingsState::Loaded(list) if list.is_empty() => {
+            return lines.push("No rulings".to_owned());
+        }
+        RulingsState::Loaded(list) => list,
+    };
+    lines.push(format!("Rulings ({})", list.len()));
+    for Ruling {
+        published_at,
+        comment,
+    } in list
+    {
+        if width < RULING_DATE_COLUMN_MIN_WIDTH {
+            lines.push(published_at.clone());
+            lines.extend(wrap(comment, width));
+            continue;
+        }
+        let indent = " ".repeat(DATE_COLUMN_WIDTH);
+        for (index, text) in wrap(comment, width - DATE_COLUMN_WIDTH)
+            .into_iter()
+            .enumerate()
+        {
+            let left = if index == 0 {
+                format!("{published_at:DATE_COLUMN_WIDTH$}")
+            } else {
+                indent.clone()
+            };
+            lines.push(format!("{left}{text}"));
+        }
     }
 }
 
@@ -103,15 +162,21 @@ impl DetailView {
         Self::default()
     }
 
-    /// Shows `card` formatted for `width` columns. The scroll goes back to the top when the
-    /// card changes.
-    pub fn show(&mut self, card: Option<&Card>, formats: &[String], width: usize) {
+    /// Shows `card` with `rulings`, formatted for `width` columns. The scroll goes back to the
+    /// top when the card changes.
+    pub fn show(
+        &mut self,
+        card: Option<&Card>,
+        formats: &[String],
+        rulings: Option<&RulingsState>,
+        width: usize,
+    ) {
         let id = card.map(|c| c.id().to_owned());
         if id != self.card_id {
             self.scroll = 0;
             self.card_id = id;
         }
-        self.lines = card.map_or_else(Vec::new, |c| format_card(c, formats, width));
+        self.lines = card.map_or_else(Vec::new, |c| format_card(c, formats, rulings, width));
         self.scroll = self.scroll.min(self.lines.len().saturating_sub(1));
     }
 
@@ -125,8 +190,16 @@ impl DetailView {
         self.scroll
     }
 
-    /// Draws the lines from the scroll position into `area`, each indented by one column.
-    pub fn render(&self, area: Rect, buf: &mut Buffer) {
+    /// Draws the lines from the scroll position into `area`, each indented by one column, with
+    /// the matches of `search` in `theme.find_keyword`. The top line, the current one, shows its
+    /// position among the matching lines at its right end.
+    pub fn render(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        theme: &Theme,
+        search: Option<&PaneSearch<'_>>,
+    ) {
         if self.lines.is_empty() {
             buf.set_line(
                 area.x + 1,
@@ -141,12 +214,24 @@ impl DetailView {
             if row >= area.height {
                 break;
             }
+            let mut text = Line::from(line.clone());
+            if let Some(search) = search {
+                text = highlight(text, search.pattern, theme.find_keyword);
+            }
             buf.set_line(
                 area.x + 1,
                 area.y + row,
-                &Line::from(line.as_str()),
+                &text,
                 area.width.saturating_sub(1),
             );
+            if let (0, Some(search)) = (row, search) {
+                let line_area = Rect {
+                    y: area.y,
+                    height: 1,
+                    ..area
+                };
+                draw_position(buf, line_area, search, theme.find_position);
+            }
         }
     }
 }
@@ -162,6 +247,10 @@ impl Searchable for DetailView {
 
     fn jump_to(&mut self, index: usize, _viewport: usize) {
         self.scroll = index.min(self.lines.len().saturating_sub(1));
+    }
+
+    fn first_visible(&self, _viewport: usize) -> usize {
+        self.scroll
     }
 }
 
@@ -201,7 +290,7 @@ mod tests {
     #[test]
     fn single_face_shows_text_flavor_and_legalities() {
         let card = fixture("normal_glorybringer");
-        let lines = format_card(&card, &formats(&["standard", "commander"]), 40);
+        let lines = format_card(&card, &formats(&["standard", "commander"]), None, 40);
         assert_eq!(
             lines[0],
             format!("Glorybringer{}{{3}}{{R}}{{R}}", " ".repeat(19))
@@ -224,7 +313,7 @@ mod tests {
     #[test]
     fn faces_are_separated_and_each_has_its_own_block() {
         let card = fixture("transform_delver");
-        let lines = format_card(&card, &[], 40);
+        let lines = format_card(&card, &[], None, 40);
         let separator = lines.iter().position(|l| l == "//").unwrap();
         assert!(lines[0].starts_with("Delver of Secrets") && lines[0].ends_with("{U}"));
         assert!(lines[1].starts_with("Creature — Human Wizard") && lines[1].ends_with("1/1"));
@@ -242,7 +331,7 @@ mod tests {
             ("split_fire_ice", ["Fire", "Ice"]),
             ("adventure_bonecrusher", ["Bonecrusher Giant", "Stomp"]),
         ] {
-            let lines = format_card(&fixture(name), &[], 60);
+            let lines = format_card(&fixture(name), &[], None, 60);
             for half in halves {
                 assert!(
                     lines.iter().any(|l| l.starts_with(half)),
@@ -256,7 +345,7 @@ mod tests {
     fn legalities_use_two_columns_when_wide() {
         let card = fixture("normal_glorybringer");
         let chosen = formats(&["standard", "pioneer", "modern"]);
-        let wide = format_card(&card, &chosen, 60);
+        let wide = format_card(&card, &chosen, None, 60);
         assert_eq!(
             &wide[wide.len() - 2..],
             [
@@ -264,15 +353,88 @@ mod tests {
                 "pioneer    legal"
             ]
         );
-        let unknown = format_card(&card, &formats(&["bogus"]), 60);
+        let unknown = format_card(&card, &formats(&["bogus"]), None, 60);
         assert!(!unknown.iter().any(|l| l.contains("bogus")));
+    }
+
+    fn rulings() -> RulingsState {
+        RulingsState::Loaded(vec![
+            Ruling {
+                published_at: "2017-04-18".to_owned(),
+                comment: "You can’t exert a creature unless an effect allows you to do so."
+                    .to_owned(),
+            },
+            Ruling {
+                published_at: "2017-04-19".to_owned(),
+                comment: "Exert is not tapping.".to_owned(),
+            },
+        ])
+    }
+
+    /// Returns the lines after the legalities: those `rulings` adds.
+    fn ruling_lines(rulings: Option<&RulingsState>, width: usize) -> Vec<String> {
+        let card = fixture("normal_glorybringer");
+        let chosen = formats(&["standard"]);
+        let without = format_card(&card, &chosen, None, width).len();
+        format_card(&card, &chosen, rulings, width)[without..].to_vec()
+    }
+
+    #[test]
+    fn rulings_follow_the_legalities_with_their_dates_in_a_column() {
+        assert!(ruling_lines(None, 40).is_empty());
+        assert_eq!(
+            ruling_lines(Some(&rulings()), 40),
+            [
+                "",
+                "Rulings (2)",
+                "2017-04-18  You can’t exert a creature",
+                "            unless an effect allows you",
+                "            to do so.",
+                "2017-04-19  Exert is not tapping.",
+            ]
+        );
+    }
+
+    #[test]
+    fn narrow_panels_put_each_date_above_its_ruling() {
+        let lines = ruling_lines(Some(&rulings()), 30);
+        assert_eq!(
+            &lines[..5],
+            [
+                "",
+                "Rulings (2)",
+                "2017-04-18",
+                "You can’t exert a creature",
+                "unless an effect allows you to",
+            ]
+        );
+        assert!(lines.iter().all(|l| display_width(l) <= 30));
+    }
+
+    #[test]
+    fn rulings_say_when_they_load_fail_or_are_none() {
+        assert_eq!(
+            ruling_lines(Some(&RulingsState::Loading), 40),
+            ["", "Rulings: loading..."]
+        );
+        assert_eq!(
+            ruling_lines(Some(&RulingsState::Loaded(Vec::new())), 40),
+            ["", "No rulings"]
+        );
+        assert_eq!(
+            ruling_lines(
+                Some(&RulingsState::Failed("cannot reach Scryfall".to_owned())),
+                40
+            ),
+            ["", "Rulings: cannot reach Scryfall"]
+        );
     }
 
     #[test]
     fn scrolling_stays_within_the_text() {
         let mut view = DetailView::new();
         let card = fixture("normal_glorybringer");
-        view.show(Some(&card), &[], 20);
+        view.show(Some(&card), &[], None, 20);
         let viewport = 3;
         view.apply_motion(Motion::Bottom, viewport);
         assert_eq!(view.scroll(), view.lines().len() - viewport);

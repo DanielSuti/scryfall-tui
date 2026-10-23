@@ -1,0 +1,45 @@
+{
+  "request": "/cards/06f90d62-6d21-47b1-a427-eb25a42f4dcb/rulings",
+  "status": 200,
+  "body": {
+    "data": [
+      {
+        "comment": "You can’t exert a creature unless an effect allows you to do so. Similar effects that “tap and freeze” a creature (such as that of Decision Paralysis) don’t exert that creature.",
+        "object": "ruling",
+        "oracle_id": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "published_at": "2017-04-18",
+        "source": "wotc"
+      },
+      {
+        "comment": "If an exerted creature is already untapped during your next untap step (most likely because it had vigilance or an effect untapped it), exert’s effect preventing it from untapping expires without having done anything.",
+        "object": "ruling",
+        "oracle_id": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "published_at": "2017-04-18",
+        "source": "wotc"
+      },
+      {
+        "comment": "If you gain control of another player’s creature until end of turn and exert it, it will untap during that player’s untap step.",
+        "object": "ruling",
+        "oracle_id": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "published_at": "2017-04-18",
+        "source": "wotc"
+      },
+      {
+        "comment": "If a creature has a targeted triggered ability that triggers when you exert it, you can exert it even if there isn’t a legal target for that triggered ability.",
+        "object": "ruling",
+        "oracle_id": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "published_at": "2017-04-18",
+        "source": "wotc"
+      },
+      {
+        "comment": "All cards in the Amonkhet set that let you exert a creature let you do so as you declare it as an attacking creature, as do some of the cards in the Hour of Devastation set. You can’t do so later in combat, and creatures put onto the battlefield attacking can’t be exerted. Any abilities that trigger on exerting an attacking creature will resolve before blockers are declared.",
+        "object": "ruling",
+        "oracle_id": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "published_at": "2017-04-18",
+        "source": "wotc"
+      }
+    ],
+    "has_more": false,
+    "object": "list"
+  }
+}

@@ -34,6 +34,29 @@ impl QueryInput {
         self.input.reset();
     }
 
+    /// Puts the cursor on the character drawn at column `column` of an area `width` columns
+    /// wide, as [`QueryInput::render`] draws it, or after the text when the column is past it.
+    pub fn set_cursor_at_column(&mut self, column: usize, width: usize) {
+        let scroll = self.input.visual_scroll(width.max(1).saturating_sub(1));
+        let target = scroll + column;
+        let mut used = 0;
+        let mut index = 0;
+        for ch in self.input.value().chars() {
+            let w = unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0);
+            if used + w > target {
+                break;
+            }
+            used += w;
+            index += 1;
+        }
+        self.input = Input::new(self.input.value().to_owned()).with_cursor(index);
+    }
+
+    /// Returns the cursor's position in the text, counted in characters.
+    pub fn cursor(&self) -> usize {
+        self.input.cursor()
+    }
+
     /// Applies an editing key. Returns true when the text or the cursor changed.
     pub fn handle_key(&mut self, key: KeyEvent) -> bool {
         self.input.handle_event(&Event::Key(key)).is_some()
@@ -74,6 +97,18 @@ mod tests {
         }
         press(&mut input, KeyCode::Backspace);
         assert_eq!(input.value(), "t:dragon");
+    }
+
+    #[test]
+    fn the_cursor_goes_to_the_character_at_a_column() {
+        let mut input = QueryInput::new();
+        input.set_value("t:dragon");
+        input.set_cursor_at_column(2, 20);
+        assert_eq!(input.cursor(), 2);
+        press(&mut input, KeyCode::Char('X'));
+        assert_eq!(input.value(), "t:Xdragon");
+        input.set_cursor_at_column(50, 20);
+        assert_eq!(input.cursor(), 9);
     }
 
     #[test]

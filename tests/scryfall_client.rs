@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use scry::scryfall::client::{RateLimits, ScryfallClient, USER_AGENT};
 use scry::scryfall::error::ScryfallError;
-use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named};
+use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named, ruling};
 
 fn unthrottled(pause: Duration) -> RateLimits {
     RateLimits {
@@ -110,4 +110,38 @@ async fn network_failure_is_a_transport_error() {
         .await
         .unwrap_err();
     assert!(matches!(err, ScryfallError::Transport(_)), "{err:?}");
+}
+
+#[tokio::test]
+async fn rulings_are_fetched_by_card_id_with_the_headers() {
+    let (server, fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
+    fake.set_rulings(
+        "id-glorybringer",
+        vec![ruling(
+            "2017-04-18",
+            "You can’t exert a creature unless an effect allows it.",
+        )],
+    );
+    let client = client_for(&server, unthrottled(Duration::ZERO)).await;
+    let list = client
+        .get_rulings(client.rulings_url("id-glorybringer"))
+        .await
+        .unwrap();
+    assert_eq!(list.data.len(), 1);
+    assert_eq!(list.data[0].published_at, "2017-04-18");
+    let received = fake.rulings_received();
+    assert_eq!(
+        received[0].path_and_query,
+        "/cards/id-glorybringer/rulings?"
+    );
+    assert_eq!(received[0].user_agent.as_deref(), Some(USER_AGENT));
+    assert_eq!(received[0].accept.as_deref(), Some("application/json"));
+    let err = client
+        .get_rulings(client.rulings_url("no-such-id"))
+        .await
+        .unwrap_err();
+    assert!(
+        matches!(err, ScryfallError::Api { status: 404, .. }),
+        "{err}"
+    );
 }

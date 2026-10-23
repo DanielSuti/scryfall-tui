@@ -9,7 +9,7 @@ use crate::domain::card::MISSING;
 use crate::tui::text::{display_width, truncate};
 use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome, UnfocusedCursor};
-use crate::tui::widgets::pane_search::{Navigable, Searchable};
+use crate::tui::widgets::pane_search::{Navigable, PaneSearch, Searchable};
 
 /// The history entries with the cursor. While unfocused the history shows no selection.
 #[derive(Debug, Clone)]
@@ -68,16 +68,24 @@ impl HistoryView {
 
     /// Draws the entries into `area`: the query on the left, cut with `...` when it doesn't
     /// fit, and the count on the right. The cursor row is highlighted with `theme` when
-    /// `focused`.
-    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool, theme: &Theme) {
-        self.list.render(area, buf, focused, theme, |index, width| {
-            let entry = &self.entries[index];
-            let count = compact_count(entry.total_cards);
-            let query_width = width.saturating_sub(display_width(&count) + 1);
-            let query = truncate(&entry.query, query_width);
-            let fill = width.saturating_sub(display_width(&query) + display_width(&count));
-            Line::from(format!("{query}{}{count}", " ".repeat(fill)))
-        });
+    /// `focused`, and the matches of `search` are drawn in `theme.find_keyword`.
+    pub fn render(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        focused: bool,
+        theme: &Theme,
+        search: Option<&PaneSearch<'_>>,
+    ) {
+        self.list
+            .render(area, buf, focused, theme, search, |index, width| {
+                let entry = &self.entries[index];
+                let count = compact_count(entry.total_cards);
+                let query_width = width.saturating_sub(display_width(&count) + 1);
+                let query = truncate(&entry.query, query_width);
+                let fill = width.saturating_sub(display_width(&query) + display_width(&count));
+                Line::from(format!("{query}{}{count}", " ".repeat(fill)))
+            });
     }
 }
 
@@ -92,6 +100,10 @@ impl Searchable for HistoryView {
 
     fn jump_to(&mut self, index: usize, viewport: usize) {
         self.list.jump_to(index, viewport);
+    }
+
+    fn first_visible(&self, viewport: usize) -> usize {
+        self.list.first_visible(viewport)
     }
 }
 

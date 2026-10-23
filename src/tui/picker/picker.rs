@@ -191,10 +191,14 @@ impl<T: Clone> Picker<T> {
             ..query
         };
         self.input.render(frame, input, true);
-        self.list
-            .render(list, frame.buffer_mut(), true, theme, |index, width| {
-                Line::from(truncate(&self.list.rows()[index], width))
-            });
+        self.list.render(
+            list,
+            frame.buffer_mut(),
+            true,
+            theme,
+            None,
+            |index, width| Line::from(truncate(&self.list.rows()[index], width)),
+        );
     }
 }
 

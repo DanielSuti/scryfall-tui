@@ -1,13 +1,16 @@
 //! Application state and event handling.
 
 mod commands;
+mod flash;
 mod history;
 pub mod registrar;
+mod rulings;
 mod search;
 mod sort;
 #[cfg(test)]
 mod tests;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -23,8 +26,9 @@ use crate::app::config::Config;
 use crate::app::history::History;
 use crate::app::results_cache::ResultsCache;
 use crate::app::selection::Selection;
+use crate::domain::ruling::{Ruling, RulingsState};
 use crate::domain::search_results::{SearchPage, SearchResults};
-use crate::search::{CardSearch, SearchRequest, SortOrder};
+use crate::search::{CardRulings, CardSearch, SearchRequest, SortOrder};
 use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
@@ -41,7 +45,7 @@ use crate::tui::views::history::HistoryView;
 use crate::tui::views::results::{ResultsView, load_summary};
 use crate::tui::views::search_bar::SearchBar;
 use crate::tui::widgets::item_list::{Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::Pane;
+use crate::tui::widgets::pane_search::{Pane, PaneSearch, Searchable, match_position};
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
 use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup, pair_case_twins};
@@ -81,14 +85,23 @@ pub enum AppEvent {
         /// What happened.
         update: SearchUpdate,
     },
+    /// The rulings fetched for the card whose rulings are kept under `key`.
+    Rulings {
+        /// The card's oracle id, or its printing id when it has none.
+        key: String,
+        /// The rulings, or why they could not be fetched.
+        result: Result<Vec<Ruling>, String>,
+    },
 }
 
-/// What the application needs from outside: a search source, and a channel on which
-/// background tasks send their [`AppEvent`]s back to the event loop.
+/// What the application needs from outside: a search source, a rulings source, and a channel
+/// on which background tasks send their [`AppEvent`]s back to the event loop.
 #[derive(Clone)]
 pub struct Services {
     /// The card search.
     pub search: Arc<dyn CardSearch>,
+    /// The rulings source.
+    pub rulings: Arc<dyn CardRulings>,
     /// Where background tasks send their events.
     pub events: UnboundedSender<AppEvent>,
 }
@@ -120,6 +133,9 @@ pub struct App {
     detail: DetailView,
     format_warning: Option<String>,
     formats_checked: bool,
+    rulings: HashMap<String, RulingsState>,
+    rulings_shown: Option<String>,
+    pending_rulings: Option<rulings::PendingRulings>,
     history: History,
     history_path: Option<std::path::PathBuf>,
     history_view: HistoryView,
@@ -127,9 +143,12 @@ pub struct App {
     batches_running: usize,
     sort_order: SortOrder,
     prompt: Option<QueryInput>,
+    prompt_origin: Option<usize>,
     last_pattern: Option<String>,
+    search_highlight: bool,
     message: Option<StatusMessage>,
     picker: Option<Picker<CommandId>>,
+    flash: Option<flash::Flash>,
 }
 
 impl Default for App {
@@ -174,6 +193,9 @@ impl App {
             detail: DetailView::new(),
             format_warning: None,
             formats_checked: false,
+            rulings: HashMap::new(),
+            rulings_shown: None,
+            pending_rulings: None,
             history: History::new(max_history),
             history_path: None,
             history_view: HistoryView::new(),
@@ -181,9 +203,12 @@ impl App {
             batches_running: 0,
             sort_order: SortOrder::default(),
             prompt: None,
+            prompt_origin: None,
             last_pattern: None,
+            search_highlight: false,
             message: None,
             picker: None,
+            flash: None,
         };
         commands::register_all(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
@@ -268,13 +293,31 @@ impl App {
 
     /// Applies one event to the state.
     pub fn handle_event(&mut self, event: AppEvent) {
+        let event_kind = match event {
+            AppEvent::Key(_) => EventKind::Key,
+            AppEvent::Tick => EventKind::Tick,
+            AppEvent::Resize(..) | AppEvent::Search { .. } | AppEvent::Rulings { .. } => {
+                EventKind::Change
+            }
+        };
+        if event_kind == EventKind::Tick {
+            let now = Instant::now();
+            self.which_key.tick(now);
+            self.start_due_rulings(now);
+            self.sync_detail();
+            return;
+        }
         match event {
             AppEvent::Key(key) => self.handle_key(key),
-            AppEvent::Tick => self.which_key.tick(Instant::now()),
+            AppEvent::Tick => {}
             AppEvent::Resize(width, height) => self.area = Rect::new(0, 0, width, height),
             AppEvent::Search { request, update } => self.handle_search_update(&request, update),
+            AppEvent::Rulings { key, result } => self.handle_rulings(key, result),
         }
         self.sync_detail();
+        if !matches!(event_kind, EventKind::Key) {
+            self.refresh_flash();
+        }
     }
 
     /// Returns the rectangle the detail is drawn in: the split's detail panel, or the main
@@ -287,15 +330,20 @@ impl App {
         }
     }
 
-    /// Formats the selected card for the detail's current width.
+    /// Formats the selected card and its rulings for the detail's current width, and prepares
+    /// the rulings of the card the detail shows.
     fn sync_detail(&mut self) {
         let Some(rect) = self.detail_rect(&self.areas()) else {
+            self.schedule_rulings(None);
             return;
         };
         let width = usize::from(rect.width.saturating_sub(3));
         let card = self.selection().map(|s| s.card.clone());
+        self.schedule_rulings(card.as_ref());
+        let rulings = card.as_ref().and_then(|c| self.rulings_for(c)).cloned();
         let formats = self.config.detail.formats.clone();
-        self.detail.show(card.as_ref(), &formats, width);
+        self.detail
+            .show(card.as_ref(), &formats, rulings.as_ref(), width);
     }
 
     /// Checks `detail.formats` against the formats the first loaded card reports.
@@ -368,7 +416,14 @@ impl App {
     /// Returns when the app next needs an [`AppEvent::Tick`], or `None` when it waits only
     /// for other events.
     pub fn next_deadline(&self) -> Option<Instant> {
-        self.which_key.deadline()
+        let rulings = self
+            .pending_rulings
+            .as_ref()
+            .map(rulings::PendingRulings::due);
+        match (self.which_key.deadline(), rulings) {
+            (Some(a), Some(b)) => Some(a.min(b)),
+            (a, b) => a.or(b),
+        }
     }
 
     /// Returns the entries of the which-key popup, with case twins on one line, or an empty
@@ -463,6 +518,10 @@ impl App {
             return;
         };
         self.message = None;
+        if self.flash.is_some() {
+            self.handle_flash_key(event);
+            return;
+        }
         if let Some(picker) = self.picker.as_mut() {
             match picker.handle_key(event) {
                 PickerOutcome::Open => {}
@@ -494,6 +553,7 @@ impl App {
                     match self.prompt.as_mut() {
                         Some(prompt) => {
                             prompt.handle_key(event);
+                            self.preview_prompt();
                         }
                         None => self.search_bar.handle_key(event),
                     }
@@ -530,6 +590,16 @@ impl App {
         }
     }
 
+    /// Returns the focused panel's searchable content, or `None` for a panel without it.
+    fn focused_searchable(&self) -> Option<&dyn Searchable> {
+        match (self.focus, self.main_view) {
+            (Panel::Main, MainView::Results | MainView::Split) => Some(&self.results),
+            (Panel::Main, MainView::FullDetail) | (Panel::Detail, _) => Some(&self.detail),
+            (Panel::History, _) => Some(&self.history_view),
+            (Panel::SearchBar, _) => None,
+        }
+    }
+
     fn motion(&mut self, motion: Motion) -> MotionOutcome {
         let outcome = self
             .focused_pane()
@@ -560,6 +630,15 @@ impl App {
 
     /// Draws the whole screen.
     pub fn render(&self, frame: &mut Frame) {
+        self.render_screen(frame);
+        if self.flash.is_some() {
+            let areas = self.areas_for(frame.area());
+            self.render_flash(frame.buffer_mut(), &areas);
+        }
+    }
+
+    /// Draws everything except flash.
+    fn render_screen(&self, frame: &mut Frame) {
         let areas = self.areas_for(frame.area());
         let focused = |panel| self.focus == panel;
 
@@ -582,10 +661,18 @@ impl App {
         let inner = block.inner(areas.main);
         frame.render_widget(block, areas.main);
         if self.main_view == MainView::FullDetail {
-            self.detail.render(inner, frame.buffer_mut());
+            let search = self.pane_search_in(Panel::Main);
+            self.detail
+                .render(inner, frame.buffer_mut(), &self.theme, search.as_ref());
         } else {
-            self.results
-                .render(inner, frame.buffer_mut(), focused(Panel::Main), &self.theme);
+            let search = self.pane_search_in(Panel::Main);
+            self.results.render(
+                inner,
+                frame.buffer_mut(),
+                focused(Panel::Main),
+                &self.theme,
+                search.as_ref(),
+            );
         }
         if let Some(detail) = areas.detail {
             let block = panel_block(
@@ -595,7 +682,9 @@ impl App {
             );
             let inner = block.inner(detail);
             frame.render_widget(block, detail);
-            self.detail.render(inner, frame.buffer_mut());
+            let search = self.pane_search_in(Panel::Detail);
+            self.detail
+                .render(inner, frame.buffer_mut(), &self.theme, search.as_ref());
         }
         if let Some(overlay) = areas.overlay {
             frame.render_widget(Clear, overlay);
@@ -649,8 +738,39 @@ impl App {
         let block = panel_block(self.title(Panel::History), focused, &self.theme);
         let inner = block.inner(area);
         frame.render_widget(block, area);
-        self.history_view
-            .render(inner, frame.buffer_mut(), focused, &self.theme);
+        let search = self.pane_search_in(Panel::History);
+        self.history_view.render(
+            inner,
+            frame.buffer_mut(),
+            focused,
+            &self.theme,
+            search.as_ref(),
+        );
+    }
+
+    /// Returns the pattern `/` shows: the one being typed, or the last one searched for until
+    /// `<Esc>` clears it. Returns `None` when there is none or it is empty.
+    pub fn active_pattern(&self) -> Option<&str> {
+        let pattern = match &self.prompt {
+            Some(prompt) => Some(prompt.value()),
+            None if self.search_highlight => self.last_pattern.as_deref(),
+            None => None,
+        };
+        pattern.filter(|p| !p.is_empty())
+    }
+
+    /// Returns what `/` shows in `panel`: the active pattern and the current line's position
+    /// among the matching lines, when `panel` has focus, since only the focused panel is
+    /// searched.
+    pub fn pane_search_in(&self, panel: Panel) -> Option<PaneSearch<'_>> {
+        if self.focus != panel {
+            return None;
+        }
+        let pattern = self.active_pattern()?;
+        let position = self
+            .focused_searchable()
+            .and_then(|pane| match_position(pane.search_lines(), pattern, pane.current_line()));
+        Some(PaneSearch { pattern, position })
     }
 
     /// The message shown while no event message is set: a problem in `detail.formats`, then
@@ -676,6 +796,14 @@ impl App {
         };
         format!("[{}] {name}", panel.jump_key())
     }
+}
+
+/// The kind of an [`AppEvent`], for what happens after it is handled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventKind {
+    Key,
+    Tick,
+    Change,
 }
 
 /// Shortens key notation for the hint line: `<CR>` becomes `⏎`.

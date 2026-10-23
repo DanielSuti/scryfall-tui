@@ -3,6 +3,7 @@
 use std::io;
 use std::num::{NonZeroU32, NonZeroUsize};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 use serde::Deserialize;
 use thiserror::Error;
@@ -26,6 +27,10 @@ pub const DEFAULT_FORMATS: &[&str] = &[
     "brawl",
     "timeless",
 ];
+
+/// How long the cursor rests on a card before its rulings are fetched in `auto` mode, when
+/// `detail.rulings.pause_ms` is not set.
+pub const DEFAULT_RULINGS_PAUSE_MS: u64 = 300;
 
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -81,12 +86,54 @@ pub struct DetailConfig {
     /// Format names whose legality the detail view shows, in this order. An empty list hides
     /// the legalities.
     pub formats: Vec<String>,
+    /// `[detail.rulings]`
+    pub rulings: RulingsConfig,
 }
 
 impl Default for DetailConfig {
     fn default() -> Self {
         Self {
             formats: DEFAULT_FORMATS.iter().map(|f| (*f).to_owned()).collect(),
+            rulings: RulingsConfig::default(),
+        }
+    }
+}
+
+/// When the detail fetches the rulings of the card it shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RulingsMode {
+    /// In the split and the full detail, once the cursor has rested on the card for
+    /// `pause_ms`.
+    #[default]
+    Auto,
+    /// Only in the full detail, as soon as it opens.
+    FullDetail,
+}
+
+/// The `[detail.rulings]` table.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct RulingsConfig {
+    /// When rulings are fetched.
+    pub mode: RulingsMode,
+    /// In `auto` mode, how long the cursor rests on a card before its rulings are fetched, in
+    /// milliseconds. 0 fetches them at once.
+    pub pause_ms: u64,
+}
+
+impl RulingsConfig {
+    /// Returns `pause_ms` as a duration.
+    pub fn pause(&self) -> Duration {
+        Duration::from_millis(self.pause_ms)
+    }
+}
+
+impl Default for RulingsConfig {
+    fn default() -> Self {
+        Self {
+            mode: RulingsMode::Auto,
+            pause_ms: DEFAULT_RULINGS_PAUSE_MS,
         }
     }
 }
@@ -179,6 +226,9 @@ mod tests {
         assert_eq!(Config::default().search.base, "game:paper -is:funny");
         assert_eq!(Config::default().history.max_entries.get(), 100);
         assert_eq!(Config::default().detail.formats.len(), 9);
+        let rulings = Config::default().detail.rulings;
+        assert_eq!(rulings.mode, RulingsMode::Auto);
+        assert_eq!(rulings.pause(), Duration::from_millis(300));
     }
 
     #[test]
@@ -198,6 +248,14 @@ mod tests {
         assert_eq!(custom.search.base, "f:commander");
         assert_eq!(config.history.max_entries.get(), 5);
         assert_eq!(config.detail.formats, ["modern"]);
+        let rulings = parse("[detail.rulings]\nmode = \"full_detail\"\npause_ms = 0").unwrap();
+        assert_eq!(rulings.detail.rulings.mode, RulingsMode::FullDetail);
+        assert_eq!(rulings.detail.rulings.pause(), Duration::ZERO);
+        assert_eq!(
+            rulings.detail.formats.len(),
+            9,
+            "the formats keep their default"
+        );
     }
 
     #[test]
@@ -211,6 +269,9 @@ mod tests {
             ("[search]\nbase = 3", "base"),
             ("[search]\nmax_page = 2", "max_page"),
             ("colour = true", "colour"),
+            ("[detail.rulings]\nmode = \"split\"", "full_detail"),
+            ("[detail.rulings]\npause_ms = -1", "pause_ms"),
+            ("[detail.rulings]\ndelay = 1", "delay"),
         ] {
             let err = parse(text).unwrap_err().to_string();
             assert!(err.contains(key), "{text:?} gave {err}");

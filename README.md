@@ -47,7 +47,7 @@ Press `<Space>sk` at any time to search the list of every key. Press `<Space>` a
 
 - **[1] Search** holds the query.
 - **[2] History** lists past queries with their result counts.
-- **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`.
+- **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`. The details show the card's text, its legality in your formats and its rulings.
 - **The status line** shows the mode, the focused panel, how many cards are loaded, the sort order, messages, and the most useful keys for the focused panel.
 
 The focused panel has a heavy green border, and its selected line is bold on a blue background (marked `▌` in the drawing above). Without focus, the results mark the selected card with `▌`, and the history shows no selection. The number in each title is the key that focuses it. The full layout, with mockups of every state, is in [docs/ui-layout.md](docs/ui-layout.md).
@@ -66,8 +66,10 @@ The focused panel has a heavy green border, and its selected line is bold on a b
 | `j`/`k`, `↓`/`↑` | Next or previous row |
 | `gg`/`G`, `Home`/`End` | First or last row |
 | `<C-d>`/`<C-u>`, `PageDown`/`PageUp` | Half a page down or up |
-| `/`, then `n`/`N` | Search the focused panel's text, then the next or previous match |
+| `/`, then `n`/`N` | Search the focused panel's text, then the next or previous match. Matches light up as you type, and the current line shows its position, such as `[2/9]` |
+| `<Esc>` | Clear the search highlight |
 | `,` then a letter | Sort the results (see below) |
+| `s` | Jump to any text on screen (see below) |
 | `<Space>sk` | List every key and command |
 | `Q` | Quit |
 
@@ -102,6 +104,17 @@ Type any query in [Scryfall's search syntax](https://scryfall.com/docs/syntax), 
 **Cache.** Results stay cached for the session. Running a query again, from the search bar or the history, shows it at once without asking Scryfall. Restart `scry` to fetch fresh results and prices.
 
 **Rate limits.** Scryfall allows 2 searches per second. `scry` spaces its requests to stay within that. If Scryfall still answers that the limit is reached, `scry` pauses all requests for the time Scryfall asks and says so in the status line.
+
+## Flash jumps
+
+`s` in normal mode, in any panel, starts a flash jump, as in LazyVim's flash.nvim. All panel text is dimmed and the status line shows `⚡`. Type a few characters: every place on screen showing them lights up, in the search bar, the history, the results and the detail. Each gets a one-letter label on the character after it. Type a label to jump there: the focus moves to that panel and its cursor to that line. A jump into the search bar puts the text cursor on the match in insert mode; a jump into the detail scrolls that line to the top.
+
+- **`<Enter>`** jumps to the match nearest the cursor, drawn in bright yellow.
+- **Colors** come from your terminal's palette, so flash follows its theme, in the hues LazyVim uses: grey text, blue matches, a bright yellow nearest match and bright red labels. Matches and labels show dark text on their color, as in LazyVim, so they stay readable on light palette colors.
+- **Letters that would continue a match** are never labels, so typing on narrows the matches.
+- **Labels** go to the nearest matches first, `asdfghjkl...` and then uppercase. Matches beyond the labels get one once you type more.
+- **`<BS>`** deletes a character, and **`<Esc>`** closes flash without moving.
+- Matching ignores case unless you type an uppercase letter.
 
 ## Sorting
 
@@ -146,7 +159,13 @@ max_entries = 100               # entries kept, at least 1
 [detail]
 # formats whose legality the detail shows, in this order; [] hides the legalities
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
+
+[detail.rulings]
+mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d
+pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
 ```
+
+Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split doesn't fetch every card on the way.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 

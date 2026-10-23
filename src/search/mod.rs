@@ -1,4 +1,4 @@
-//! Card search sources behind one contract.
+//! Card search and rulings sources behind one contract each.
 
 use std::future::Future;
 use std::num::NonZeroU32;
@@ -7,6 +7,7 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+use crate::domain::ruling::Ruling;
 use crate::domain::search_results::{PageToken, SearchPage};
 use crate::scryfall::error::ScryfallError;
 
@@ -226,6 +227,12 @@ pub trait CardSearch: Send + Sync {
         &'a self,
         token: &'a PageToken,
     ) -> BoxFuture<'a, Result<SearchPage, SearchError>>;
+}
+
+/// A source of the rulings on a card.
+pub trait CardRulings: Send + Sync {
+    /// Fetches the rulings on the card with printing id `card_id`.
+    fn rulings<'a>(&'a self, card_id: &'a str) -> BoxFuture<'a, Result<Vec<Ruling>, SearchError>>;
 }
 
 /// How many times one page request is retried after the source rate-limited it.

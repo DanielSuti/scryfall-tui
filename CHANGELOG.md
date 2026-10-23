@@ -27,12 +27,13 @@ All notable changes to this project are documented in this file, newest release 
 - Parser from Scryfall Card objects to domain cards, tested on recorded cards of the normal, transform, modal double-faced, adventure, split and land layouts.
 - Scryfall HTTP client sending the `scry/<version>` User-Agent and Accept headers through the throttle. Error objects keep Scryfall's details, and a 429 pauses all requests. A stateful fake of the search API backs the tests.
 - `CardSearch` contract for search sources, and `ApiSearch` sending queries to Scryfall unchanged. A search with no match gives an empty page with Scryfall's message.
-- Config file `~/.config/scry/config.toml` with `search.max_pages`, `history.max_entries` and `detail.formats`. Unknown keys and invalid values stop `scry` with an error naming the key.
+- `CardRulings` contract for a card's rulings, which `ApiSearch` fetches from Scryfall's `/cards/<id>/rulings` through the same throttle as the search. The fake answers rulings requests, and a recording of Glorybringer's rulings backs a parse test.
+- Config file `~/.config/scry/config.toml` with `search.max_pages`, `history.max_entries`, `detail.formats` and `detail.rulings` (`mode` and `pause_ms`). Unknown keys and invalid values stop `scry` with an error naming the key.
 - Batch loading of search results: up to `search.max_pages` pages at a time, retrying after rate-limit pauses and stopping at the last page or on a failure.
 - Session cache of search results keyed by the exact query text. A cached query sends no request, a failed one is loaded again, and a paused one resumes from its next page.
 - Search bar: `1` focuses it keeping the query, `<leader>ss` starts a new search, and `<Enter>` runs the query in the background and focuses the results. Running a query again uses the session cache.
 - Results view with name, cost and card-type columns cut with `...`, loaded and total counts in the status line, Scryfall's warnings and no-match notice, and the next batch loading when the cursor moves past the last row.
-- Card detail in the split and the full detail: every face's name, cost, type line, stats, oracle and flavor text, and the legalities of `detail.formats`. `J`/`K` step cards in the full detail, and formats Scryfall does not report are named in the status line.
+- Card detail in the split and the full detail: every face's name, cost, type line, stats, oracle and flavor text, the legalities of `detail.formats`, and the card's rulings, each dated, or whether they are loading, failed or none exist. Rulings are fetched per `detail.rulings` and kept for the session by oracle id; a failed fetch is retried when the card is shown again. `J`/`K` step cards in the full detail, and formats Scryfall does not report are named in the status line.
 - Search history model: newest first, re-run queries move to the top, capped at `history.max_entries`, saved atomically as JSON Lines.
 - History panel listing past queries with their result counts, cutting long queries with `...`. `<Enter>` runs an entry from the cache and moves it to the top with the cursor, `e` edits it in the search bar and `dd` deletes it. The history is saved in `~/.local/state/scry/history.jsonl`.
 - Failed searches keep their loaded cards and show the reason in the status line until the query is run again. Network failures and rate-limit pauses are shown there as well.
@@ -48,3 +49,9 @@ All notable changes to this project are documented in this file, newest release 
 - The selected line of the focused panel is bold on a blue background across its width, as in lazygit, instead of the `▌` marker.
 - The history shows no selection while it doesn't have focus, and its entries use the full width.
 - Backlog of readability ideas taken from tig, yazi and lazygit.
+- `/` highlights the matches in the focused panel as you type and moves the cursor to the first one, as yazi does. `<Esc>` in the prompt cancels the search and restores the cursor, and `<Esc>` in normal mode clears the highlight.
+- A line matching the `/` search shows its position among the matching lines, such as `[2/9]`, at its right end, as yazi does. The label is a magenta badge so it stands out on the selected line.
+- Flash matching on the drawn screen: occurrences of typed text, labelled nearest first, skipping letters that would continue a match.
+- `s` starts a flash jump, as in LazyVim: typed characters light up wherever they show on screen, each match gets a label, and typing the label moves the focus and cursor there, across panels. Its colors come from the terminal's palette in the hues LazyVim uses, with dark text on each highlight so it stays readable.
+- Every color comes from the terminal's 16-color palette or its default colors, so the interface follows the terminal theme. Flash uses LazyVim's colors for its groups.
+- Flash matches, the nearest match and labels show dark text on palette blue, bright yellow and bright red, as LazyVim does, so they stay readable on themes with light palette colors.

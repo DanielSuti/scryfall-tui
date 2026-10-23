@@ -1,5 +1,13 @@
 //! Searching the text of the focused panel with `/`, `n` and `N`.
 
+use std::ops::Range;
+
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
+
+use crate::tui::text::display_width;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 
 /// A panel whose text lines `/` can search and whose cursor or scroll position can jump to a
@@ -11,6 +19,8 @@ pub trait Searchable {
     fn current_line(&self) -> usize;
     /// Moves to the line at `index` and scrolls it into a viewport of `viewport` rows.
     fn jump_to(&mut self, index: usize, viewport: usize);
+    /// Returns the index of the line drawn at the top of a viewport of `viewport` rows.
+    fn first_visible(&self, viewport: usize) -> usize;
 }
 
 /// A panel that responds to cursor motions.
@@ -35,6 +45,10 @@ impl Searchable for ItemList {
 
     fn jump_to(&mut self, index: usize, viewport: usize) {
         self.select(index, viewport);
+    }
+
+    fn first_visible(&self, viewport: usize) -> usize {
+        self.visible_range(viewport).start
     }
 }
 
@@ -62,27 +76,131 @@ pub struct Found {
     pub wrapped: bool,
 }
 
-/// Finds the next line containing `pattern`, starting after `from` in `direction` and wrapping
-/// around. The line at `from` itself is checked last. The match ignores case unless `pattern`
-/// contains an uppercase letter, like vim's `smartcase`. Returns `None` for an empty pattern or
-/// when no line matches.
+/// What `/` shows in the focused panel: the matches of `pattern`, and where the current line
+/// stands among the matching lines.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PaneSearch<'a> {
+    /// The pattern being typed, or the last one searched for.
+    pub pattern: &'a str,
+    /// The current line's rank among the matching lines, from 1, and their count. `None` when
+    /// the current line doesn't match.
+    pub position: Option<(usize, usize)>,
+}
+
+impl PaneSearch<'_> {
+    /// Returns the position as drawn on the current line, such as `[2/9]`, as yazi shows it.
+    pub fn position_label(&self) -> Option<String> {
+        self.position
+            .map(|(rank, count)| format!("[{rank}/{count}]"))
+    }
+}
+
+/// Draws the position label of `search`, such as `[2/9]`, at the right end of `row`, a
+/// one-line area, after one blank column. The label's cells take `style` over their own style;
+/// the blank column keeps the row's style. Draws nothing without a position or when the label
+/// doesn't fit.
+pub fn draw_position(buf: &mut Buffer, row: Rect, search: &PaneSearch<'_>, style: Style) {
+    let Some(label) = search.position_label() else {
+        return;
+    };
+    let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
+    if width + 1 > row.width {
+        return;
+    }
+    let x = row.right() - width;
+    buf.set_stringn(x - 1, row.y, " ", 1, Style::default());
+    buf.set_stringn(x, row.y, &label, usize::from(width), style);
+}
+
+/// Returns the rank of line `current` among the lines matching `pattern`, from 1, and the
+/// number of matching lines. Returns `None` when line `current` doesn't match.
+pub fn match_position(lines: &[String], pattern: &str, current: usize) -> Option<(usize, usize)> {
+    let matching: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| !match_ranges(line, pattern).is_empty())
+        .map(|(index, _)| index)
+        .collect();
+    let rank = matching.iter().position(|index| *index == current)?;
+    Some((rank + 1, matching.len()))
+}
+
+/// Returns the byte ranges of `text` where `pattern` occurs, left to right and without overlap.
+/// Case is ignored unless `pattern` contains an uppercase letter, like vim's `smartcase`. An
+/// empty pattern matches nowhere.
+pub fn match_ranges(text: &str, pattern: &str) -> Vec<Range<usize>> {
+    let pattern: Vec<char> = pattern.chars().collect();
+    if pattern.is_empty() {
+        return Vec::new();
+    }
+    let case_sensitive = pattern.iter().any(|c| c.is_uppercase());
+    let same = |a: char, b: char| {
+        if case_sensitive {
+            a == b
+        } else {
+            a.to_lowercase().eq(b.to_lowercase())
+        }
+    };
+    let chars: Vec<(usize, char)> = text.char_indices().collect();
+    let mut ranges = Vec::new();
+    let mut i = 0;
+    while i + pattern.len() <= chars.len() {
+        if pattern
+            .iter()
+            .enumerate()
+            .all(|(k, p)| same(chars[i + k].1, *p))
+        {
+            let end = chars
+                .get(i + pattern.len())
+                .map_or(text.len(), |(at, _)| *at);
+            ranges.push(chars[i].0..end);
+            i += pattern.len();
+        } else {
+            i += 1;
+        }
+    }
+    ranges
+}
+
+/// Returns `line` with every match of `pattern` in its spans drawn with `style` on top of the
+/// span's own style. A match is found within one span.
+pub fn highlight(line: Line<'static>, pattern: &str, style: Style) -> Line<'static> {
+    let mut spans = Vec::new();
+    for span in line.spans {
+        let ranges = match_ranges(&span.content, pattern);
+        if ranges.is_empty() {
+            spans.push(span);
+            continue;
+        }
+        let mut last = 0;
+        for range in ranges {
+            if range.start > last {
+                spans.push(Span::styled(
+                    span.content[last..range.start].to_owned(),
+                    span.style,
+                ));
+            }
+            spans.push(Span::styled(
+                span.content[range.clone()].to_owned(),
+                span.style.patch(style),
+            ));
+            last = range.end;
+        }
+        if last < span.content.len() {
+            spans.push(Span::styled(span.content[last..].to_owned(), span.style));
+        }
+    }
+    Line { spans, ..line }
+}
+
+/// Finds the next line containing `pattern`, as [`match_ranges`] matches, starting after `from`
+/// in `direction` and wrapping around. The line at `from` itself is checked last. Returns
+/// `None` for an empty pattern or when no line matches.
 pub fn find(lines: &[String], pattern: &str, from: usize, direction: Direction) -> Option<Found> {
     if pattern.is_empty() || lines.is_empty() {
         return None;
     }
-    let case_sensitive = pattern.chars().any(char::is_uppercase);
-    let needle = if case_sensitive {
-        pattern.to_owned()
-    } else {
-        pattern.to_lowercase()
-    };
-    let matches = |line: &str| {
-        if case_sensitive {
-            line.contains(&needle)
-        } else {
-            line.to_lowercase().contains(&needle)
-        }
-    };
+    let matches = |line: &str| !match_ranges(line, pattern).is_empty();
     let len = lines.len();
     let from = from.min(len - 1);
     (1..=len).find_map(|step| {
@@ -101,6 +219,62 @@ pub fn find(lines: &[String], pattern: &str, from: usize, direction: Direction) 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use ratatui::style::{Color, Modifier};
+
+    #[test]
+    fn match_ranges_follow_smartcase() {
+        assert_eq!(
+            match_ranges("Dragon dragon DRAGON", "dragon"),
+            [0..6, 7..13, 14..20]
+        );
+        assert_eq!(match_ranges("Dragon dragon", "Dragon"), vec![(0..6)]);
+        assert_eq!(
+            match_ranges("Lim-Dûl the Necromancer", "DÛL"),
+            Vec::<Range<usize>>::new()
+        );
+        // `û` takes two bytes.
+        assert_eq!(match_ranges("Lim-Dûl", "dûl"), vec![(4..8)]);
+        assert_eq!(match_ranges("aaaa", "aa"), [0..2, 2..4]);
+        assert!(match_ranges("text", "").is_empty());
+    }
+
+    #[test]
+    fn the_position_counts_matching_lines() {
+        let lines = lines(&["Dragon Mage", "Glorybringer", "Shivan Dragon", "Old Dragon"]);
+        assert_eq!(match_position(&lines, "dragon", 0), Some((1, 3)));
+        assert_eq!(match_position(&lines, "dragon", 2), Some((2, 3)));
+        assert_eq!(match_position(&lines, "dragon", 3), Some((3, 3)));
+        assert_eq!(match_position(&lines, "dragon", 1), None);
+        assert_eq!(match_position(&lines, "zzz", 0), None);
+        let search = PaneSearch {
+            pattern: "dragon",
+            position: Some((2, 9)),
+        };
+        assert_eq!(search.position_label().as_deref(), Some("[2/9]"));
+    }
+
+    #[test]
+    fn highlight_styles_only_the_matches() {
+        let style = Style::new().fg(Color::Yellow);
+        let base = Style::new().add_modifier(Modifier::BOLD);
+        let line = Line::from(vec![Span::raw("▌"), Span::styled("Shivan Dragon", base)]);
+        let lit = highlight(line, "drag", style);
+        let parts: Vec<(&str, Style)> = lit
+            .spans
+            .iter()
+            .map(|s| (s.content.as_ref(), s.style))
+            .collect();
+        assert_eq!(
+            parts,
+            [
+                ("▌", Style::default()),
+                ("Shivan ", base),
+                ("Drag", base.patch(style)),
+                ("on", base),
+            ]
+        );
+    }
 
     fn lines(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| (*s).to_owned()).collect()

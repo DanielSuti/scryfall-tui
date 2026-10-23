@@ -58,6 +58,9 @@ pub const KEPT_CARD_FIELDS: &[&str] = &[
 /// The query whose recordings check every sort order. Its matches differ in every field
 /// Scryfall sorts by, so each order and its reverse start with different cards.
 pub const ORDER_QUERY: &str = "t:dragon";
+/// The printing id of the Glorybringer card in `search_glorybringer`, whose rulings are
+/// recorded.
+pub const GLORYBRINGER_ID: &str = "06f90d62-6d21-47b1-a427-eb25a42f4dcb";
 /// The command that refreshes the recordings, quoted in error messages.
 pub const RECORD_COMMAND: &str =
     "cargo test --test scryfall_recorded -- --ignored record_scryfall_answers";
@@ -97,6 +100,10 @@ pub fn recorded_requests() -> Vec<(String, Url)> {
         (
             "search_no_match".to_owned(),
             client.search_url("zzzqqqnotacard", "name", "auto"),
+        ),
+        (
+            "rulings_glorybringer".to_owned(),
+            client.rulings_url(GLORYBRINGER_ID),
         ),
     ];
     for field in SortField::ALL {

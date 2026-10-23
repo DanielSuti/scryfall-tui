@@ -62,8 +62,10 @@ impl Harness {
     fn assemble(server: MockServer, fake: FakeScryfall, base_url: &str, config: Config) -> Self {
         let client = ScryfallClient::with_base_url(base_url.parse().unwrap(), NO_LIMITS).unwrap();
         let (events, background) = tokio::sync::mpsc::unbounded_channel();
+        let api = Arc::new(ApiSearch::new(client));
         let services = Services {
-            search: Arc::new(ApiSearch::new(client)),
+            search: api.clone(),
+            rulings: api,
             events,
         };
         let mut app = App::with_services(config, services);
@@ -105,6 +107,16 @@ impl Harness {
             .expect("a background event within 5 s")
             .expect("the channel stays open");
         self.app.handle_event(event);
+    }
+
+    /// Waits until the app's next deadline, then sends it a tick.
+    pub async fn tick_at_deadline(&mut self) {
+        let deadline = self
+            .app
+            .next_deadline()
+            .expect("the app waits for a deadline");
+        tokio::time::sleep_until(deadline).await;
+        self.app.handle_event(AppEvent::Tick);
     }
 
     /// Returns the screen as text, one line per row.

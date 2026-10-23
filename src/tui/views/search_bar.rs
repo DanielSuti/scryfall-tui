@@ -31,6 +31,12 @@ impl SearchBar {
         self.input.set_value(query);
     }
 
+    /// Puts the text cursor on the character drawn at `column` of a text area `width` columns
+    /// wide.
+    pub fn set_cursor_at_column(&mut self, column: usize, width: usize) {
+        self.input.set_cursor_at_column(column, width);
+    }
+
     /// Removes the query.
     pub fn clear(&mut self) {
         self.input.clear();

@@ -8,6 +8,7 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
 
 use crate::tui::theme::Theme;
+use crate::tui::widgets::pane_search::{PaneSearch, draw_position, highlight};
 
 /// A cursor movement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -158,13 +159,16 @@ impl ItemList {
 
     /// Draws the visible rows into `area`. `line` formats the row at an index to fit the given
     /// width. With `focused`, the cursor row is filled across the whole width with
-    /// `theme.selected_row`; without, it looks as the list's [`UnfocusedCursor`] says.
+    /// `theme.selected_row`; without, it looks as the list's [`UnfocusedCursor`] says. With
+    /// `search`, the pattern's matches are drawn in `theme.find_keyword`, and the cursor row's
+    /// position among the matching rows at its right end in `theme.find_position`.
     pub fn render(
         &self,
         area: Rect,
         buf: &mut Buffer,
         focused: bool,
         theme: &Theme,
+        search: Option<&PaneSearch<'_>>,
         line: impl Fn(usize, usize) -> Line<'static>,
     ) {
         let marker_width = self.marker_width();
@@ -186,10 +190,18 @@ impl ItemList {
                 };
                 spans.push(Span::raw(marker));
             }
-            spans.extend(line(index, width).spans);
+            let content = line(index, width);
+            let content = match search {
+                Some(search) => highlight(content, search.pattern, theme.find_keyword),
+                None => content,
+            };
+            spans.extend(content.spans);
             Line::from(spans).render(row_area, buf);
             if selected && focused {
                 buf.set_style(row_area, theme.selected_row);
+            }
+            if let (true, Some(search)) = (selected, search) {
+                draw_position(buf, row_area, search, theme.find_position);
             }
         }
     }
@@ -211,9 +223,14 @@ mod tests {
         let area = Rect::new(0, 0, 10, 3);
         let mut buf = Buffer::empty(area);
         let rows = list.rows().to_vec();
-        list.render(area, &mut buf, focused, &Theme::default(), move |i, _| {
-            Line::from(rows[i].clone())
-        });
+        list.render(
+            area,
+            &mut buf,
+            focused,
+            &Theme::default(),
+            None,
+            move |i, _| Line::from(rows[i].clone()),
+        );
         buf
     }
 
