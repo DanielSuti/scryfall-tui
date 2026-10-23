@@ -19,6 +19,8 @@ pub trait Searchable {
     fn current_line(&self) -> usize;
     /// Moves to the line at `index` and scrolls it into a viewport of `viewport` rows.
     fn jump_to(&mut self, index: usize, viewport: usize);
+    /// Returns the index of the line drawn at the top of a viewport of `viewport` rows.
+    fn first_visible(&self, viewport: usize) -> usize;
 }
 
 /// A panel that responds to cursor motions.
@@ -43,6 +45,10 @@ impl Searchable for ItemList {
 
     fn jump_to(&mut self, index: usize, viewport: usize) {
         self.select(index, viewport);
+    }
+
+    fn first_visible(&self, viewport: usize) -> usize {
+        self.visible_range(viewport).start
     }
 }
 

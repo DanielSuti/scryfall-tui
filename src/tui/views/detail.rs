@@ -186,6 +186,10 @@ impl Searchable for DetailView {
     fn jump_to(&mut self, index: usize, _viewport: usize) {
         self.scroll = index.min(self.lines.len().saturating_sub(1));
     }
+
+    fn first_visible(&self, _viewport: usize) -> usize {
+        self.scroll
+    }
 }
 
 impl Navigable for DetailView {

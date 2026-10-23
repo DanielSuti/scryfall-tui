@@ -25,6 +25,14 @@ pub struct Theme {
     /// The position of the current line among the matching lines, such as `[2/9]`: a badge
     /// with a magenta background and text in the terminal's background color.
     pub find_position: Style,
+    /// Panel text while flash is open, as flash.nvim's `FlashBackdrop`.
+    pub flash_backdrop: Style,
+    /// Text that flash matches, as flash.nvim's `FlashMatch`.
+    pub flash_match: Style,
+    /// The match nearest the cursor, which `<Enter>` jumps to, as flash.nvim's `FlashCurrent`.
+    pub flash_current: Style,
+    /// A flash jump label, as flash.nvim's `FlashLabel`.
+    pub flash_label: Style,
 }
 
 impl Default for Theme {
@@ -47,6 +55,14 @@ impl Default for Theme {
                 .fg(Color::Magenta)
                 .bg(Color::Reset)
                 .add_modifier(Modifier::BOLD.union(Modifier::REVERSED)),
+            flash_backdrop: Style::new().fg(Color::DarkGray),
+            flash_match: Style::new().fg(Color::White).bg(Color::Blue),
+            // 256-color orange, the closest to flash.nvim's FlashCurrent.
+            flash_current: Style::new().fg(Color::Black).bg(Color::Indexed(208)),
+            flash_label: Style::new()
+                .fg(Color::White)
+                .bg(Color::Magenta)
+                .add_modifier(Modifier::BOLD),
         }
     }
 }

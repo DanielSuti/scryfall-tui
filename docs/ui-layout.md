@@ -116,6 +116,7 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 | | `/`, `n`, `N` | Search the focused panel's text. Matches light up as you type and the cursor moves to the first one; `<Enter>` keeps the search, `<Esc>` in the prompt cancels it. A matching current line shows its position among the matching lines at its right end, such as `[2/9]`, as in yazi. Only the label itself has a magenta background, with text in the terminal's background color. |
 | | `<Esc>` | Clear the search highlight. |
 | | `,` then a letter | Sort the results. See below. |
+| | `s` | Flash jump to any text on screen. See below. |
 | | `Q` | Quit. |
 | | `+`, `_` | Reserved and unbound. |
 | Search bar, insert mode | `<CR>` | Run the search. It enters history, and focus moves to the results. |
@@ -136,6 +137,16 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 ## Truncation
 
 Text that does not fit its column ends in `...`. Anything after it on the same line, such as a history count, stays visible. One helper does this everywhere text is cut.
+
+## Flash jumps
+
+`s` in normal mode, in any panel, starts a flash jump, as in LazyVim's flash.nvim. All panel text is dimmed and the status line shows `⚡`. Type a few characters: every place on screen showing them lights up, in the search bar, the history, the results and the detail. Each gets a one-letter label on the character after it. Type a label to jump there: the focus moves to that panel and its cursor to that line. A jump into the search bar puts the text cursor on the match in insert mode; a jump into the detail scrolls that line to the top.
+
+- **`<Enter>`** jumps to the match nearest the cursor, drawn in orange.
+- **Letters that would continue a match** are never labels, so typing on narrows the matches.
+- **Labels** go to the nearest matches first, `asdfghjkl...` and then uppercase. Matches beyond the labels get one once you type more.
+- **`<BS>`** deletes a character, and **`<Esc>`** closes flash without moving.
+- Matching ignores case unless you type an uppercase letter.
 
 ## Sorting
 

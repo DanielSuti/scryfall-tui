@@ -69,6 +69,7 @@ The focused panel has a heavy green border, and its selected line is bold on a b
 | `/`, then `n`/`N` | Search the focused panel's text, then the next or previous match. Matches light up as you type, and the current line shows its position, such as `[2/9]` |
 | `<Esc>` | Clear the search highlight |
 | `,` then a letter | Sort the results (see below) |
+| `s` | Jump to any text on screen (see below) |
 | `<Space>sk` | List every key and command |
 | `Q` | Quit |
 
@@ -103,6 +104,16 @@ Type any query in [Scryfall's search syntax](https://scryfall.com/docs/syntax), 
 **Cache.** Results stay cached for the session. Running a query again, from the search bar or the history, shows it at once without asking Scryfall. Restart `scry` to fetch fresh results and prices.
 
 **Rate limits.** Scryfall allows 2 searches per second. `scry` spaces its requests to stay within that. If Scryfall still answers that the limit is reached, `scry` pauses all requests for the time Scryfall asks and says so in the status line.
+
+## Flash jumps
+
+`s` in normal mode, in any panel, starts a flash jump, as in LazyVim's flash.nvim. All panel text is dimmed and the status line shows `⚡`. Type a few characters: every place on screen showing them lights up, in the search bar, the history, the results and the detail. Each gets a one-letter label on the character after it. Type a label to jump there: the focus moves to that panel and its cursor to that line. A jump into the search bar puts the text cursor on the match in insert mode; a jump into the detail scrolls that line to the top.
+
+- **`<Enter>`** jumps to the match nearest the cursor, drawn in orange.
+- **Letters that would continue a match** are never labels, so typing on narrows the matches.
+- **Labels** go to the nearest matches first, `asdfghjkl...` and then uppercase. Matches beyond the labels get one once you type more.
+- **`<BS>`** deletes a character, and **`<Esc>`** closes flash without moving.
+- Matching ignores case unless you type an uppercase letter.
 
 ## Sorting
 

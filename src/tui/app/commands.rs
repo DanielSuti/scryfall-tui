@@ -245,7 +245,8 @@ pub(super) fn register_all(
     register_pane_commands(&mut reg)?;
     super::search::register(&mut reg)?;
     super::history::register(&mut reg)?;
-    super::sort::register(&mut reg)
+    super::sort::register(&mut reg)?;
+    super::flash::register(&mut reg)
 }
 
 fn register_pane_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {

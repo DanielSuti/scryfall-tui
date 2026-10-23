@@ -1,6 +1,7 @@
 //! Application state and event handling.
 
 mod commands;
+mod flash;
 mod history;
 pub mod registrar;
 mod search;
@@ -132,6 +133,7 @@ pub struct App {
     search_highlight: bool,
     message: Option<StatusMessage>,
     picker: Option<Picker<CommandId>>,
+    flash: Option<flash::Flash>,
 }
 
 impl Default for App {
@@ -188,6 +190,7 @@ impl App {
             search_highlight: false,
             message: None,
             picker: None,
+            flash: None,
         };
         commands::register_all(&mut app.commands, &mut app.keymap)
             .expect("built-in commands and keys are consistent");
@@ -272,13 +275,25 @@ impl App {
 
     /// Applies one event to the state.
     pub fn handle_event(&mut self, event: AppEvent) {
+        let event_kind = match event {
+            AppEvent::Key(_) => EventKind::Key,
+            AppEvent::Tick => EventKind::Tick,
+            AppEvent::Resize(..) | AppEvent::Search { .. } => EventKind::Change,
+        };
+        if event_kind == EventKind::Tick {
+            self.which_key.tick(Instant::now());
+            return;
+        }
         match event {
             AppEvent::Key(key) => self.handle_key(key),
-            AppEvent::Tick => self.which_key.tick(Instant::now()),
+            AppEvent::Tick => {}
             AppEvent::Resize(width, height) => self.area = Rect::new(0, 0, width, height),
             AppEvent::Search { request, update } => self.handle_search_update(&request, update),
         }
         self.sync_detail();
+        if !matches!(event_kind, EventKind::Key) {
+            self.refresh_flash();
+        }
     }
 
     /// Returns the rectangle the detail is drawn in: the split's detail panel, or the main
@@ -467,6 +482,10 @@ impl App {
             return;
         };
         self.message = None;
+        if self.flash.is_some() {
+            self.handle_flash_key(event);
+            return;
+        }
         if let Some(picker) = self.picker.as_mut() {
             match picker.handle_key(event) {
                 PickerOutcome::Open => {}
@@ -575,6 +594,15 @@ impl App {
 
     /// Draws the whole screen.
     pub fn render(&self, frame: &mut Frame) {
+        self.render_screen(frame);
+        if self.flash.is_some() {
+            let areas = self.areas_for(frame.area());
+            self.render_flash(frame.buffer_mut(), &areas);
+        }
+    }
+
+    /// Draws everything except flash.
+    fn render_screen(&self, frame: &mut Frame) {
         let areas = self.areas_for(frame.area());
         let focused = |panel| self.focus == panel;
 
@@ -732,6 +760,14 @@ impl App {
         };
         format!("[{}] {name}", panel.jump_key())
     }
+}
+
+/// The kind of an [`AppEvent`], for what happens after it is handled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EventKind {
+    Key,
+    Tick,
+    Change,
 }
 
 /// Shortens key notation for the hint line: `<CR>` becomes `⏎`.

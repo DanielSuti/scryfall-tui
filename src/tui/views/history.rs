@@ -101,6 +101,10 @@ impl Searchable for HistoryView {
     fn jump_to(&mut self, index: usize, viewport: usize) {
         self.list.jump_to(index, viewport);
     }
+
+    fn first_visible(&self, viewport: usize) -> usize {
+        self.list.first_visible(viewport)
+    }
 }
 
 impl Navigable for HistoryView {
