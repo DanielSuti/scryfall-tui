@@ -129,3 +129,78 @@ async fn never_mode_fetches_nothing() {
     assert_eq!(h.app.next_deadline(), None);
     assert!(rulings_requested(&h).is_empty());
 }
+
+#[tokio::test]
+async fn trigger_mode_loads_only_on_l_and_then_shows_them_again() {
+    let mut h = start(LoadMode::Trigger, LoadMode::Trigger).await;
+    h.press("j<CR>");
+    assert!(
+        detail_has(&h, "Rulings: L to load"),
+        "{:#?}",
+        h.app.detail_lines()
+    );
+    assert_eq!(h.app.next_deadline(), None);
+    assert!(rulings_requested(&h).is_empty());
+    h.press("L");
+    assert!(detail_has(&h, "Rulings: loading..."));
+    h.next_event().await;
+    assert_eq!(rulings_requested(&h), ["/cards/id-glorybringer/rulings?"]);
+    assert!(detail_has(&h, "Rulings (1)"));
+    h.press("kj");
+    assert!(
+        detail_has(&h, "Rulings (1)"),
+        "rulings already loaded show without L"
+    );
+    h.press("d");
+    assert!(detail_has(&h, "Rulings (1)"), "in the full detail as well");
+    assert_eq!(rulings_requested(&h).len(), 1);
+}
+
+#[tokio::test]
+async fn l_fetches_at_once_during_the_pause() {
+    let mut h = start(LoadMode::Auto, LoadMode::Auto).await;
+    h.press("<CR>");
+    assert!(
+        h.app.next_deadline().is_some(),
+        "waiting for the cursor to rest"
+    );
+    h.press("L");
+    assert_eq!(h.app.next_deadline(), None);
+    h.next_event().await;
+    assert_eq!(rulings_requested(&h), ["/cards/id-dragon-mage/rulings?"]);
+    assert!(detail_has(&h, "No rulings"));
+}
+
+#[tokio::test]
+async fn l_says_when_there_is_nothing_to_load() {
+    let mut h = start(LoadMode::Trigger, LoadMode::Trigger).await;
+    h.press("<CR>L");
+    h.next_event().await;
+    h.press("L");
+    assert!(
+        h.status_line().contains("Nothing to load"),
+        "{}",
+        h.status_line()
+    );
+    assert_eq!(rulings_requested(&h).len(), 1);
+}
+
+#[tokio::test]
+async fn l_fetches_nothing_in_a_view_set_to_never() {
+    let mut h = start(LoadMode::Never, LoadMode::Trigger).await;
+    h.press("<CR>L");
+    assert!(
+        h.status_line().contains("Nothing to load"),
+        "{}",
+        h.status_line()
+    );
+    assert!(!detail_has(&h, "Rulings"));
+    assert!(rulings_requested(&h).is_empty());
+    h.press("dL");
+    h.next_event().await;
+    assert_eq!(
+        rulings_requested(&h).len(),
+        1,
+        "the full detail is on trigger"
+    );
+}

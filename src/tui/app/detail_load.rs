@@ -46,7 +46,8 @@ pub(super) struct LoadSchedule {
 impl LoadSchedule {
     /// Plans the fetch for the card the detail shows, given as its key and printing id, or for
     /// no card, in the view whose mode is `mode`. In `auto` mode a fetch starts once the cursor
-    /// has rested for `pause`; in `never` mode it never starts. Nothing is fetched when `known`
+    /// has rested for `pause`; in `trigger` mode only through [`LoadSchedule::fetch_now`]; in
+    /// `never` mode it never starts. Nothing is fetched when `known`
     /// is [`Known::Kept`], or when it is [`Known::Failed`] and the card was already shown.
     pub(super) fn schedule(
         &mut self,
@@ -70,7 +71,7 @@ impl LoadSchedule {
         };
         let pause = match mode {
             LoadMode::Auto => pause,
-            LoadMode::Never => {
+            LoadMode::Trigger | LoadMode::Never => {
                 self.pending = None;
                 return plan;
             }
@@ -88,6 +89,18 @@ impl LoadSchedule {
             self.pending = Some((fetch, Instant::now() + pause));
         }
         plan
+    }
+
+    /// Returns the fetch to start at once for the shown card, given as its key and printing id,
+    /// because the user asked for it, and drops the fetch that waited for the cursor to rest.
+    /// Returns `None` when `known` is [`Known::Kept`]; a failure is fetched again.
+    pub(super) fn fetch_now(&mut self, card: (&str, &str), known: Known) -> Option<Fetch> {
+        self.pending = None;
+        self.shown = Some(card.0.to_owned());
+        (known != Known::Kept).then(|| Fetch {
+            key: card.0.to_owned(),
+            card_id: card.1.to_owned(),
+        })
     }
 
     /// Returns when the waiting fetch starts, or `None` when none waits.
@@ -149,6 +162,27 @@ mod tests {
         let plan = s.schedule(A, Known::Missing, LoadMode::Never, Duration::ZERO);
         assert_eq!(plan, Plan::default());
         assert_eq!(s.deadline(), None);
+    }
+
+    #[test]
+    fn trigger_mode_fetches_only_when_asked() {
+        let mut s = LoadSchedule::default();
+        let plan = s.schedule(A, Known::Missing, LoadMode::Trigger, PAUSE);
+        assert_eq!(plan, Plan::default());
+        assert_eq!(s.deadline(), None);
+        assert_eq!(s.fetch_now(A.unwrap(), Known::Missing), Some(fetch_a()));
+        assert_eq!(s.fetch_now(A.unwrap(), Known::Failed), Some(fetch_a()));
+        assert_eq!(s.fetch_now(A.unwrap(), Known::Kept), None);
+    }
+
+    #[test]
+    fn fetching_now_drops_the_waiting_fetch() {
+        let mut s = LoadSchedule::default();
+        s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE);
+        assert_eq!(s.fetch_now(A.unwrap(), Known::Missing), Some(fetch_a()));
+        assert_eq!(s.deadline(), None);
+        let plan = s.schedule(A, Known::Failed, LoadMode::Auto, Duration::ZERO);
+        assert!(!plan.forget_failure, "the card is still the one shown");
     }
 
     #[test]

@@ -51,6 +51,8 @@ pub const PREVIOUS_MATCH: CommandId = CommandId("pane.search.previous");
 pub const NEXT_CARD: CommandId = CommandId("detail.next_card");
 /// Shows the previous card in the full detail.
 pub const PREVIOUS_CARD: CommandId = CommandId("detail.previous_card");
+/// Loads the shown card's rulings and image at once.
+pub const LOAD: CommandId = CommandId("detail.load");
 /// Opens the keymaps picker.
 pub const KEYMAPS: CommandId = CommandId("keymaps.picker");
 
@@ -61,6 +63,27 @@ impl App {
         if self.results.list_mut().apply(motion, viewport).end_reached {
             self.load_more();
         }
+    }
+
+    /// Loads at once whatever the shown card is missing in this view, rulings and image,
+    /// unless the view is set to `never` for it, and says so when there is nothing to load.
+    fn load_detail_now(&mut self) {
+        let rulings = self.load_rulings_now();
+        let image = self.load_image_now();
+        if !rulings && !image {
+            self.message = Some(StatusMessage::info("Nothing to load"));
+        }
+    }
+
+    /// Returns the key that runs [`LOAD`], as the status-line hints write it.
+    pub(super) fn load_key(&self) -> String {
+        self.keymap
+            .bindings_for(LOAD)
+            .find(|b| b.mode == Mode::Normal)
+            .map_or_else(
+                || "L".to_owned(),
+                |b| super::hint_keys(&b.sequence.to_string()),
+            )
     }
 
     fn open_keymaps_picker(&mut self) {
@@ -425,5 +448,18 @@ fn register_main_panel_commands(reg: &mut Registrar<'_>) -> Result<(), Registrat
             |app| app.step_card(Motion::Up),
         ),
     )?;
+    reg.add(
+        normal,
+        &["L"],
+        command(
+            LOAD,
+            SPLIT_SCOPE,
+            "Load the card's rulings and image now",
+            Some("load"),
+            App::load_detail_now,
+        ),
+    )?;
+    reg.bind(normal, DETAIL_SCOPE, &["L"], LOAD)?;
+    reg.bind(normal, FULL_DETAIL_SCOPE, &["L"], LOAD)?;
     Ok(())
 }

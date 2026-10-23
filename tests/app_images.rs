@@ -256,3 +256,28 @@ async fn renders_the_split_with_an_image() {
     deliver(&mut h).await;
     insta::assert_snapshot!(screen_with_image(&h));
 }
+
+#[tokio::test]
+async fn trigger_mode_leaves_no_room_until_l() {
+    let mut h = start(LoadMode::Trigger).await;
+    h.press("<CR>");
+    assert!(!h.screen().contains("Loading image..."));
+    assert!(
+        h.app.detail_lines()[0].len() > 40,
+        "the text takes the full width: {:#?}",
+        h.app.detail_lines()
+    );
+    assert_eq!(h.app.next_deadline(), None);
+    assert!(images_requested(&h).is_empty());
+    h.press("L");
+    assert!(h.screen().contains("Loading image..."), "{}", h.screen());
+    deliver(&mut h).await;
+    assert_eq!(images_requested(&h), ["/images/id-dragon-mage.png?"]);
+    assert!(screen_has_image(&h));
+    h.press("jk");
+    assert!(
+        screen_has_image(&h),
+        "an image already loaded shows without L"
+    );
+    assert_eq!(images_requested(&h).len(), 1);
+}

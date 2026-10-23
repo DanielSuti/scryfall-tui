@@ -11,6 +11,7 @@ use crate::search::MAX_RATE_LIMIT_RETRIES;
 use crate::tui::app::detail_load::Known;
 use crate::tui::app::{App, AppEvent};
 use crate::tui::main_panel::MainView;
+use crate::tui::views::detail::RulingsShown;
 
 /// Shown when the app runs without a rulings source, which only happens in tests.
 const NO_RULINGS_SOURCE: &str = "no rulings source is configured";
@@ -22,18 +23,42 @@ pub(super) fn rulings_key(card: &Card) -> String {
 }
 
 impl App {
-    /// Returns the rulings the detail shows for `card`: those known, or loading while a fetch
-    /// waits for the cursor to rest. Returns `None` when they are not fetched yet, or when the
-    /// view is set to `never`, which hides them even when known.
-    pub(super) fn rulings_for(&self, card: &Card) -> Option<&RulingsState> {
-        const LOADING: &RulingsState = &RulingsState::Loading;
-        if self.rulings_mode() == LoadMode::Never {
+    /// Returns the rulings section the detail shows for `card`: the rulings known, loading
+    /// while a fetch waits for the cursor to rest, or the key that loads them in `trigger`
+    /// mode. Returns `None` when they are not fetched yet in `auto` mode, or when the view is
+    /// set to `never`, which hides them even when known.
+    pub(super) fn rulings_shown(&self, card: &Card) -> Option<RulingsShown> {
+        let mode = self.rulings_mode();
+        if mode == LoadMode::Never {
             return None;
         }
         let key = rulings_key(card);
-        self.rulings
-            .get(&key)
-            .or_else(|| self.rulings_schedule.is_pending(&key).then_some(LOADING))
+        if let Some(state) = self.rulings.get(&key) {
+            return Some(RulingsShown::State(state.clone()));
+        }
+        if self.rulings_schedule.is_pending(&key) {
+            return Some(RulingsShown::State(RulingsState::Loading));
+        }
+        (mode == LoadMode::Trigger).then(|| RulingsShown::OnTrigger(self.load_key()))
+    }
+
+    /// Fetches the rulings of the shown card at once, unless they are known or loading or the
+    /// view is set to `never`. A failure is fetched again. Returns true when a fetch started.
+    pub(super) fn load_rulings_now(&mut self) -> bool {
+        if self.rulings_mode() == LoadMode::Never || self.detail_rect(&self.areas()).is_none() {
+            return false;
+        }
+        let Some(card) = self.selection().map(|s| s.card.clone()) else {
+            return false;
+        };
+        let key = rulings_key(&card);
+        let known = self.rulings_known(&key);
+        let Some(fetch) = self.rulings_schedule.fetch_now((&key, card.id()), known) else {
+            return false;
+        };
+        self.rulings.remove(&key);
+        self.fetch_rulings(fetch.key, fetch.card_id);
+        true
     }
 
     /// Prepares the rulings of `card`, the card the detail shows, or of no card, as
@@ -41,11 +66,9 @@ impl App {
     /// failure when the card is shown anew.
     pub(super) fn schedule_rulings(&mut self, card: Option<&Card>) {
         let key = card.map(rulings_key);
-        let known = match key.as_ref().and_then(|k| self.rulings.get(k)) {
-            None => Known::Missing,
-            Some(RulingsState::Failed(_)) => Known::Failed,
-            Some(_) => Known::Kept,
-        };
+        let known = key
+            .as_ref()
+            .map_or(Known::Missing, |k| self.rulings_known(k));
         let settings = &self.config.detail.rulings;
         let plan = self.rulings_schedule.schedule(
             key.as_deref().zip(card.map(Card::id)),
@@ -58,6 +81,15 @@ impl App {
         }
         if let Some(fetch) = plan.fetch {
             self.fetch_rulings(fetch.key, fetch.card_id);
+        }
+    }
+
+    /// Returns what is kept under rulings key `key`.
+    fn rulings_known(&self, key: &str) -> Known {
+        match self.rulings.get(key) {
+            None => Known::Missing,
+            Some(RulingsState::Failed(_)) => Known::Failed,
+            Some(_) => Known::Kept,
         }
     }
 

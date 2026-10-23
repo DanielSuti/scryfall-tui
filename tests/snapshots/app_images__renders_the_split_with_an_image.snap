@@ -25,4 +25,4 @@ expression: screen_with_image(&h)
 │                          │┃                                ┃│                                                │
 │                          │┃                                ┃│ standard   not legal                           │
 ╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
- NORMAL  │ [3] Results │ 3 of 3 loaded │ by name, A → Z                                       d detail · q back
+ NORMAL  │ [3] Results │ 3 of 3 loaded │ by name, A → Z                              d detail · q back · L load

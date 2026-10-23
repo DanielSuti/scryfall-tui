@@ -110,6 +110,8 @@ pub enum LoadMode {
     /// Once the cursor has rested on the card for `pause_ms`.
     #[default]
     Auto,
+    /// Only when `L` is pressed. Data already loaded shows without it.
+    Trigger,
     /// Never. The view doesn't show the data, even when it was loaded in the other view.
     Never,
 }
@@ -296,6 +298,9 @@ mod tests {
         assert!(images.detail.images.is_never());
         assert_eq!(images.detail.images.pause(), Duration::from_millis(50));
         assert_eq!(images.detail.rulings, LoadConfig::default());
+        let trigger = parse("[detail.images]\nsplit = \"trigger\"").unwrap();
+        assert_eq!(trigger.detail.images.mode_in(false), LoadMode::Trigger);
+        assert!(!trigger.detail.images.is_never());
     }
 
     #[test]
@@ -315,6 +320,7 @@ mod tests {
             ("[detail.rulings]\npause_ms = -1", "pause_ms"),
             ("[detail.rulings]\ndelay = 1", "delay"),
             ("[detail.images]\nsplit = \"full_detail\"", "never"),
+            ("[detail.images]\nsplit = \"full_detail\"", "trigger"),
             ("[detail.images]\npause_ms = -1", "pause_ms"),
             ("[detail.images]\nsize = \"large\"", "size"),
         ] {

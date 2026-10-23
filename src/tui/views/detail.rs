@@ -131,6 +131,15 @@ fn cols_for(rows: u16, cell: Size) -> u16 {
     u16::try_from((pixels + per_col / 2) / per_col).unwrap_or(u16::MAX)
 }
 
+/// The rulings section of the detail.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RulingsShown {
+    /// What is known of the rulings.
+    State(RulingsState),
+    /// They load when the key, in key notation such as `L`, is pressed.
+    OnTrigger(String),
+}
+
 /// What the image box holds.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ImageStatus {
@@ -212,7 +221,7 @@ impl CardText {
 pub fn format_card(
     card: &Card,
     formats: &[String],
-    rulings: Option<&RulingsState>,
+    rulings: Option<&RulingsShown>,
     width: usize,
 ) -> CardText {
     format_card_in(card, formats, rulings, LineWidths::uniform(width))
@@ -223,7 +232,7 @@ pub fn format_card(
 pub fn format_card_in(
     card: &Card,
     formats: &[String],
-    rulings: Option<&RulingsState>,
+    rulings: Option<&RulingsShown>,
     widths: LineWidths,
 ) -> CardText {
     let mut lines = Vec::new();
@@ -307,8 +316,12 @@ fn format_face(
 /// Formats `rulings` under a heading with their count. From
 /// [`RULING_DATE_COLUMN_MIN_WIDTH`] on, each date stands left of its text; on narrower
 /// panels it takes a line above it.
-fn format_rulings(rulings: &RulingsState, widths: LineWidths, lines: &mut Vec<String>) {
+fn format_rulings(rulings: &RulingsShown, widths: LineWidths, lines: &mut Vec<String>) {
     let width_at = |index| widths.at(index);
+    let rulings = match rulings {
+        RulingsShown::State(state) => state,
+        RulingsShown::OnTrigger(key) => return lines.push(format!("Rulings: {key} to load")),
+    };
     let list = match rulings {
         RulingsState::Loading => return lines.push("Rulings: loading...".to_owned()),
         RulingsState::Failed(message) => {
@@ -383,7 +396,7 @@ impl DetailView {
         &mut self,
         card: Option<&Card>,
         formats: &[String],
-        rulings: Option<&RulingsState>,
+        rulings: Option<&RulingsShown>,
         image: Option<DetailImage>,
         width: usize,
     ) {
@@ -671,7 +684,8 @@ mod tests {
         let card = fixture("normal_glorybringer");
         let chosen = formats(&["standard"]);
         let without = format_card(&card, &chosen, None, width).lines.len();
-        format_card(&card, &chosen, rulings, width).lines[without..].to_vec()
+        let shown = rulings.map(|r| RulingsShown::State(r.clone()));
+        format_card(&card, &chosen, shown.as_ref(), width).lines[without..].to_vec()
     }
 
     #[test]
@@ -688,6 +702,15 @@ mod tests {
                 "2017-04-19  Exert is not tapping.",
             ]
         );
+    }
+
+    #[test]
+    fn rulings_on_trigger_name_the_key() {
+        let card = fixture("normal_glorybringer");
+        let chosen = formats(&["standard"]);
+        let shown = RulingsShown::OnTrigger("L".to_owned());
+        let lines = format_card(&card, &chosen, Some(&shown), 40).lines;
+        assert_eq!(&lines[lines.len() - 2..], ["", "Rulings: L to load"]);
     }
 
     #[test]

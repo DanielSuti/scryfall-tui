@@ -9,4 +9,4 @@ expression: render(&app)
 "│                          │┃                                ┃│ No card selected                               │"
 "│                          │┃                                ┃│                                                │"
 "╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯"
-" NORMAL  │ [3] Results                                                                        d detail · q back "
+" NORMAL  │ [3] Results                                                               d detail · q back · L load "

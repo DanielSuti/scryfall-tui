@@ -82,8 +82,9 @@ The focused panel has a heavy green border, and its selected line is bold on a b
 | `<Enter>` | Show the card's details next to the results |
 | `d` | Show the card's details full width |
 | `q` | Close the details, or quit when only the results are shown |
+| `L` | With the details shown: load the card's rulings and image now |
 
-**Full detail:** `J`/`K` show the next or previous card, `<Enter>` splits, and `q` goes back.
+**Full detail:** `J`/`K` show the next or previous card, `<Enter>` splits, `L` loads the rulings and image now, and `q` goes back.
 
 **History**
 
@@ -161,17 +162,17 @@ max_entries = 100               # entries kept, at least 1
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
 
 [detail.rulings]
-split = "auto"                  # in the split: "auto" or "never"
-full_detail = "auto"            # in the full detail: "auto" or "never"
+split = "auto"                  # in the split: "auto", "trigger" (on L) or "never"
+full_detail = "auto"            # in the full detail: "auto", "trigger" or "never"
 pause_ms = 300                  # "auto": how long the cursor rests on a card first; 0 for at once
 
 [detail.images]
-split = "auto"                  # in the split: "auto" or "never"
-full_detail = "auto"            # in the full detail: "auto" or "never"
+split = "auto"                  # in the split: "auto", "trigger" (on L) or "never"
+full_detail = "auto"            # in the full detail: "auto", "trigger" or "never"
 pause_ms = 300                  # "auto": how long the cursor rests on a card first; 0 for at once
 ```
 
-Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split or stepping with `J`/`K` doesn't fetch every card on the way. A view set to `never` neither fetches them nor shows them, even when the other view already did.
+Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split or stepping with `J`/`K` doesn't fetch every card on the way. A view set to `trigger` fetches them only when you press `L`, which also skips the pause in `auto`, and shows rulings already fetched without it. A view set to `never` neither fetches them nor shows them, even when the other view already did. The same goes for images, and a split on `trigger` leaves no room for the image until `L`.
 
 Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `never` in both views skips that question. Terminals without one, such as Alacritty, show no image.
 

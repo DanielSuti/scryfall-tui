@@ -95,14 +95,16 @@ impl App {
     /// Returns the image box for `card` in a detail of `inner` cells: on the left in the full
     /// detail, beside the text in the split. Returns `None` when the terminal can't draw
     /// images, the card has none, `detail.images` is `never` in this view, even for an image
-    /// already downloaded, or there is no room.
+    /// already downloaded, or `trigger` and the image is neither downloaded, loading nor
+    /// failed, or there is no room.
     pub(super) fn image_box(&self, card: &Card, inner: Size) -> Option<ImageBox> {
         let picker = self.image_picker.as_ref()?;
         card.image_url()?;
         let full_detail = self.main_view == MainView::FullDetail;
         match self.config.detail.images.mode_in(full_detail) {
             LoadMode::Never => return None,
-            LoadMode::Auto => {}
+            LoadMode::Trigger if self.images.known(card.id()) == Known::Missing => return None,
+            LoadMode::Auto | LoadMode::Trigger => {}
         }
         let font = picker.font_size();
         let cell = Size::new(font.width, font.height);
@@ -151,6 +153,36 @@ impl App {
             ImageStatus::Loading
         };
         Some(DetailImage { area, status })
+    }
+
+    /// Fetches the shown card's image at once, unless it is downloaded or loading, the
+    /// terminal can't draw images, or the view is set to `never`. A failure is fetched again.
+    /// Returns true when a fetch started.
+    pub(super) fn load_image_now(&mut self) -> bool {
+        if self.image_picker.is_none() || self.detail_rect(&self.areas()).is_none() {
+            return false;
+        }
+        let full_detail = self.main_view == MainView::FullDetail;
+        if self.config.detail.images.mode_in(full_detail) == LoadMode::Never {
+            return false;
+        }
+        let Some(card) = self.selection().map(|s| s.card.clone()) else {
+            return false;
+        };
+        let Some(url) = card.image_url() else {
+            return false;
+        };
+        let known = self.images.known(card.id());
+        if self
+            .image_schedule
+            .fetch_now((card.id(), card.id()), known)
+            .is_none()
+        {
+            return false;
+        }
+        self.images.loads.remove(card.id());
+        self.fetch_image(card.id().to_owned(), url.to_owned());
+        true
     }
 
     /// Starts the waiting fetch once its time has come.

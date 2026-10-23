@@ -40,13 +40,13 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 ## Rulings flow
 
 1. Whenever the detail shows a card, the app looks up its rulings by oracle id in the session's rulings.
-2. If they are missing, the mode `detail.rulings` sets for the view decides when to fetch: after `pause_ms` through a deadline returned by `App::next_deadline`, which the event loop turns into a tick, or not at all.
+2. If they are missing, the mode `detail.rulings` sets for the view decides when to fetch: after `pause_ms` through a deadline returned by `App::next_deadline`, which the event loop turns into a tick, only on `L` in `trigger` mode, or not at all. `L` fetches at once in any mode but `never`.
 3. A background task fetches them through `CardRulings`, and they arrive as an `AppEvent`.
 
 ## Images flow
 
 1. At start-up, unless `detail.images` is `never` in both views, `tui::graphics::detect` asks the terminal for a graphics protocol and its cell size through `ratatui-image`, as Yazi picks its image adapter. Without kitty, sixel or iTerm2 support the app gets no picker and shows no images.
-2. Whenever the detail shows a card, the app computes the image box from the panel and the cell size, and the same `LoadSchedule` as the rulings decides when to fetch, keyed by the printing id.
+2. Whenever the detail shows a card, the app computes the image box from the panel and the cell size, and the same `LoadSchedule` as the rulings decides when to fetch, keyed by the printing id; `L` fetches at once, as for rulings.
 3. A background task fetches the bytes through `CardImages`, and they arrive as an `AppEvent`. The session keeps the last 50.
 4. A blocking task decodes them and encodes them for the protocol at the box's size. Only the shown card's encoding is kept; a result for another card or size is dropped.
 5. Drawing puts the encoded image into the box as a sliced image, so the split can scroll it partly out of view. Popups hide it.

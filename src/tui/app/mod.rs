@@ -385,7 +385,7 @@ impl App {
         let inner = Size::new(rect.width.saturating_sub(2), rect.height.saturating_sub(2));
         let card = self.selection().map(|s| s.card.clone());
         self.schedule_rulings(card.as_ref());
-        let rulings = card.as_ref().and_then(|c| self.rulings_for(c)).cloned();
+        let rulings = card.as_ref().and_then(|c| self.rulings_shown(c));
         let image_box = card.as_ref().and_then(|c| self.image_box(c, inner));
         let image = self.prepare_image(card.as_ref(), image_box);
         let formats = self.config.detail.formats.clone();
