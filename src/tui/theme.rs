@@ -22,7 +22,8 @@ pub struct Theme {
     pub dim: Style,
     /// The text that `/` matches, as yazi's `find_keyword`.
     pub find_keyword: Style,
-    /// The position of the current line among the matching lines, as yazi's `find_position`.
+    /// The position of the current line among the matching lines, such as `[2/9]`: a badge
+    /// with a magenta background and text in the terminal's background color.
     pub find_position: Style,
 }
 
@@ -41,9 +42,11 @@ impl Default for Theme {
                     .union(Modifier::ITALIC)
                     .union(Modifier::UNDERLINED),
             ),
+            // Reversed, so the text takes the terminal's background color on any theme.
             find_position: Style::new()
                 .fg(Color::Magenta)
-                .add_modifier(Modifier::BOLD.union(Modifier::ITALIC)),
+                .bg(Color::Reset)
+                .add_modifier(Modifier::BOLD.union(Modifier::REVERSED)),
         }
     }
 }

@@ -90,24 +90,20 @@ impl PaneSearch<'_> {
 }
 
 /// Draws the position label of `search`, such as `[2/9]`, at the right end of `row`, a
-/// one-line area, in `style` over the cells' own style. Draws nothing without a position or
-/// when the label doesn't fit.
+/// one-line area, after one blank column. The label's cells take `style` over their own style;
+/// the blank column keeps the row's style. Draws nothing without a position or when the label
+/// doesn't fit.
 pub fn draw_position(buf: &mut Buffer, row: Rect, search: &PaneSearch<'_>, style: Style) {
     let Some(label) = search.position_label() else {
         return;
     };
-    let label = format!(" {label}");
     let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
-    if width > row.width {
+    if width + 1 > row.width {
         return;
     }
-    buf.set_stringn(
-        row.right() - width,
-        row.y,
-        &label,
-        usize::from(width),
-        style,
-    );
+    let x = row.right() - width;
+    buf.set_stringn(x - 1, row.y, " ", 1, Style::default());
+    buf.set_stringn(x, row.y, &label, usize::from(width), style);
 }
 
 /// Returns the rank of line `current` among the lines matching `pattern`, from 1, and the

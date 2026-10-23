@@ -164,12 +164,14 @@ async fn the_current_line_shows_its_position_among_the_matches() {
         !row_with(&h, "Dragon Mage").contains("[1/2]"),
         "only on the current line"
     );
-    let label = cells_of(&h, "[2/2]");
-    assert!(
-        label
-            .iter()
-            .all(|c| c.fg == Color::Magenta && c.bg == Color::Blue)
-    );
+    // A badge: the reversed cells show a magenta background with the terminal's background
+    // color as text; the blank column before it keeps the selected line's blue.
+    let label = cells_of(&h, " [2/2]");
+    assert!(label[1..].iter().all(|c| c.fg == Color::Magenta
+        && c.bg == Color::Reset
+        && c.modifier.contains(Modifier::REVERSED)));
+    assert_eq!(label[0].bg, Color::Blue);
+    assert!(!label[0].modifier.contains(Modifier::REVERSED));
     h.press("n");
     assert!(
         row_with(&h, "Dragon Mage").ends_with(" [1/2]┃"),
