@@ -114,6 +114,7 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 | | `<leader>sk` | Keymaps picker. |
 | | `2` / `3` / `0` | Focus history (an overlay when hidden), the main panel, or the detail (split only). |
 | | `/`, `n`, `N` | Search the focused panel's text. |
+| | `,` then a letter | Sort the results. See below. |
 | | `Q` | Quit. |
 | | `+`, `_` | Reserved and unbound. |
 | Search bar, insert mode | `<CR>` | Run the search. It enters history, and focus moves to the results. |
@@ -124,7 +125,6 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 | | `dd` | Delete the entry. |
 | Results | `j`/`k`, `gg`/`G`, `<C-d>`/`<C-u>`, or `↓`/`↑`, `Home`/`End`, `PageDown`/`PageUp` | Move. Reaching the last loaded row loads the next batch. |
 | | `d`, `<CR>`, `q` | As in the transition table. |
-| | `,` then a letter | Sort the results, also in the split. See below. |
 | Full detail | `j`/`k` or `↓`/`↑` | Scroll. |
 | | `J`/`K` | Previous or next card. |
 | | `<CR>`, `q` | As in the transition table. |
@@ -138,7 +138,7 @@ Text that does not fit its column ends in `...`. Anything after it on the same l
 
 ## Sorting
 
-`,` on the results opens the "Sort by" window at once, as in yazi. A second key picks the order, and its uppercase form sorts in reverse. `<Esc>` closes the window without sorting.
+`,` in normal mode, in any panel, opens the "Sort by" window at once, as in yazi. A second key picks the order, and its uppercase form sorts in reverse. `<Esc>` closes the window without sorting.
 
 | Key | Order | Default | Uppercase |
 |---|---|---|---|

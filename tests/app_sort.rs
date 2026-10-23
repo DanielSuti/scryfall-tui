@@ -43,12 +43,41 @@ async fn comma_opens_the_sort_window_at_once_with_paired_keys() {
 }
 
 #[tokio::test]
-async fn comma_outside_the_results_does_nothing() {
+async fn comma_works_in_every_panel_in_normal_mode() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
     h.press("2,");
-    assert!(h.app.which_key_entries().is_empty());
+    assert_eq!(h.app.which_key_title(), Some("Sort by"), "in the history");
     h.press("d");
+    h.settle().await;
+    assert_eq!(
+        h.app.sort_order(),
+        SortOrder::new(SortField::Released, false)
+    );
+    assert_eq!(h.result_names(), ["New Dragon", "Mid Dragon", "Old Dragon"]);
+    h.press("1<Esc>,D");
+    h.settle().await;
+    assert_eq!(
+        h.result_names(),
+        ["Old Dragon", "Mid Dragon", "New Dragon"],
+        "in the search bar"
+    );
+    h.press("3d,n");
+    h.settle().await;
+    assert_eq!(
+        h.result_names(),
+        ["Mid Dragon", "New Dragon", "Old Dragon"],
+        "in the full detail"
+    );
+}
+
+#[tokio::test]
+async fn comma_is_text_in_insert_mode() {
+    let mut h = Harness::start(dragons(), 175, 6).await;
+    h.press("<leader>ss");
+    h.type_text("a,d");
+    assert_eq!(h.app.search_query(), "a,d");
+    assert!(h.app.which_key_entries().is_empty());
     assert_eq!(h.app.sort_order(), SortOrder::default());
 }
 

@@ -1,12 +1,11 @@
 //! Sorting the results with `,` followed by a letter, as in yazi: the letter picks the field,
-//! and its uppercase form sorts in reverse.
+//! and its uppercase form sorts in reverse. The keys work in normal mode in every panel.
 
-use crate::app::command::{Command, CommandId};
+use crate::app::command::{Command, CommandId, Scope};
 use crate::search::{SortField, SortOrder};
 use crate::tui::app::App;
 use crate::tui::app::registrar::{Registrar, RegistrationError};
 use crate::tui::keymap::mode::Mode;
-use crate::tui::layout::{RESULTS_SCOPE, SPLIT_SCOPE};
 
 /// The prefix of the sort keys.
 pub const SORT_PREFIX: &str = ",";
@@ -58,24 +57,15 @@ pub(super) fn register(reg: &mut Registrar<'_>) -> Result<(), RegistrationError>
             let command = Command::new(
                 CommandId(id),
                 order.description(),
-                RESULTS_SCOPE,
+                Scope::GLOBAL,
                 None,
                 move |app: &mut App| app.apply_sort(order),
             );
             let notation = format!("{SORT_PREFIX}{key}");
             reg.add(Mode::Normal, &[notation.as_str()], command)?;
-            reg.bind(
-                Mode::Normal,
-                SPLIT_SCOPE,
-                &[notation.as_str()],
-                CommandId(id),
-            )?;
         }
     }
-    for scope in [RESULTS_SCOPE, SPLIT_SCOPE] {
-        reg.describe_prefix(Mode::Normal, scope, SORT_PREFIX, SORT_TITLE, true)?;
-    }
-    Ok(())
+    reg.describe_prefix(Mode::Normal, Scope::GLOBAL, SORT_PREFIX, SORT_TITLE, true)
 }
 
 impl App {
