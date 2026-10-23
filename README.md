@@ -163,9 +163,15 @@ formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "
 [detail.rulings]
 mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d; "never"
 pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
+
+[detail.images]
+mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d; "never"
+pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
 ```
 
 Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split doesn't fetch every card on the way.
+
+Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol, such as kitty, Ghostty, WezTerm, foot or iTerm2. At start-up `scry` asks the terminal which protocol it supports; `mode = "never"` skips that question.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 

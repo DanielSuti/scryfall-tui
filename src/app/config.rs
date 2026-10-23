@@ -31,6 +31,9 @@ pub const DEFAULT_FORMATS: &[&str] = &[
 /// How long the cursor rests on a card before its rulings are fetched in `auto` mode, when
 /// `detail.rulings.pause_ms` is not set.
 pub const DEFAULT_RULINGS_PAUSE_MS: u64 = 300;
+/// How long the cursor rests on a card before its image is fetched in `auto` mode, when
+/// `detail.images.pause_ms` is not set.
+pub const DEFAULT_IMAGES_PAUSE_MS: u64 = 300;
 
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -88,6 +91,8 @@ pub struct DetailConfig {
     pub formats: Vec<String>,
     /// `[detail.rulings]`
     pub rulings: RulingsConfig,
+    /// `[detail.images]`
+    pub images: ImagesConfig,
 }
 
 impl Default for DetailConfig {
@@ -95,6 +100,7 @@ impl Default for DetailConfig {
         Self {
             formats: DEFAULT_FORMATS.iter().map(|f| (*f).to_owned()).collect(),
             rulings: RulingsConfig::default(),
+            images: ImagesConfig::default(),
         }
     }
 }
@@ -136,6 +142,34 @@ impl Default for RulingsConfig {
         Self {
             mode: LoadMode::Auto,
             pause_ms: DEFAULT_RULINGS_PAUSE_MS,
+        }
+    }
+}
+
+/// The `[detail.images]` table. Images are shown only in terminals with a graphics protocol.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct ImagesConfig {
+    /// When card images are fetched. `never` also skips asking the terminal which graphics
+    /// protocol it supports.
+    pub mode: LoadMode,
+    /// In `auto` mode, how long the cursor rests on a card before its image is fetched, in
+    /// milliseconds. 0 fetches it at once.
+    pub pause_ms: u64,
+}
+
+impl ImagesConfig {
+    /// Returns `pause_ms` as a duration.
+    pub fn pause(&self) -> Duration {
+        Duration::from_millis(self.pause_ms)
+    }
+}
+
+impl Default for ImagesConfig {
+    fn default() -> Self {
+        Self {
+            mode: LoadMode::Auto,
+            pause_ms: DEFAULT_IMAGES_PAUSE_MS,
         }
     }
 }
@@ -231,6 +265,9 @@ mod tests {
         let rulings = Config::default().detail.rulings;
         assert_eq!(rulings.mode, LoadMode::Auto);
         assert_eq!(rulings.pause(), Duration::from_millis(300));
+        let images = Config::default().detail.images;
+        assert_eq!(images.mode, LoadMode::Auto);
+        assert_eq!(images.pause(), Duration::from_millis(300));
     }
 
     #[test]
@@ -260,6 +297,12 @@ mod tests {
         );
         let never = parse("[detail.rulings]\nmode = \"never\"").unwrap();
         assert_eq!(never.detail.rulings.mode, LoadMode::Never);
+        let images = parse("[detail.images]\nmode = \"never\"\npause_ms = 50").unwrap();
+        assert_eq!(images.detail.images.mode, LoadMode::Never);
+        assert_eq!(images.detail.images.pause(), Duration::from_millis(50));
+        assert_eq!(images.detail.rulings, RulingsConfig::default());
+        let full = parse("[detail.images]\nmode = \"full_detail\"").unwrap();
+        assert_eq!(full.detail.images.mode, LoadMode::FullDetail);
     }
 
     #[test]
@@ -277,6 +320,9 @@ mod tests {
             ("[detail.rulings]\nmode = \"split\"", "never"),
             ("[detail.rulings]\npause_ms = -1", "pause_ms"),
             ("[detail.rulings]\ndelay = 1", "delay"),
+            ("[detail.images]\nmode = \"split\"", "never"),
+            ("[detail.images]\npause_ms = -1", "pause_ms"),
+            ("[detail.images]\nsize = \"large\"", "size"),
         ] {
             let err = parse(text).unwrap_err().to_string();
             assert!(err.contains(key), "{text:?} gave {err}");
