@@ -127,49 +127,7 @@ pub struct App {
     prompt: Option<QueryInput>,
     last_pattern: Option<String>,
     message: Option<StatusMessage>,
-    picker: Option<OpenPicker>,
-}
-
-/// The picker on screen and what choosing an item does.
-#[derive(Debug)]
-pub enum OpenPicker {
-    /// Runs the chosen command.
-    Keymaps(Picker<CommandId>),
-    /// Sorts the results by the chosen order.
-    Sort(Picker<SortOrder>),
-}
-
-impl OpenPicker {
-    /// Returns the labels of the matching items, best match first.
-    pub fn labels(&self) -> Vec<&str> {
-        match self {
-            OpenPicker::Keymaps(picker) => picker.matching_labels(),
-            OpenPicker::Sort(picker) => picker.matching_labels(),
-        }
-    }
-
-    /// Returns the label under the cursor, or `None` when nothing matches.
-    pub fn selected_label(&self) -> Option<&str> {
-        match self {
-            OpenPicker::Keymaps(picker) => picker.selected_label(),
-            OpenPicker::Sort(picker) => picker.selected_label(),
-        }
-    }
-
-    fn render(&self, frame: &mut Frame, area: Rect) {
-        match self {
-            OpenPicker::Keymaps(picker) => picker.render(frame, area),
-            OpenPicker::Sort(picker) => picker.render(frame, area),
-        }
-    }
-}
-
-/// What a key press in a picker asks for.
-enum PickerAction {
-    Stay,
-    Close,
-    RunCommand(CommandId),
-    Sort(SortOrder),
+    picker: Option<Picker<CommandId>>,
 }
 
 impl Default for App {
@@ -503,28 +461,12 @@ impl App {
         };
         self.message = None;
         if let Some(picker) = self.picker.as_mut() {
-            let action = match picker {
-                OpenPicker::Keymaps(picker) => match picker.handle_key(event) {
-                    PickerOutcome::Open => PickerAction::Stay,
-                    PickerOutcome::Cancelled => PickerAction::Close,
-                    PickerOutcome::Selected(id) => PickerAction::RunCommand(id),
-                },
-                OpenPicker::Sort(picker) => match picker.handle_key(event) {
-                    PickerOutcome::Open => PickerAction::Stay,
-                    PickerOutcome::Cancelled => PickerAction::Close,
-                    PickerOutcome::Selected(order) => PickerAction::Sort(order),
-                },
-            };
-            match action {
-                PickerAction::Stay => {}
-                PickerAction::Close => self.close_picker(),
-                PickerAction::RunCommand(id) => {
+            match picker.handle_key(event) {
+                PickerOutcome::Open => {}
+                PickerOutcome::Cancelled => self.close_picker(),
+                PickerOutcome::Selected(id) => {
                     self.close_picker();
                     self.run_command(id);
-                }
-                PickerAction::Sort(order) => {
-                    self.close_picker();
-                    self.apply_sort(order);
                 }
             }
             return;
@@ -603,7 +545,7 @@ impl App {
     }
 
     /// Returns the open picker, if any.
-    pub fn picker(&self) -> Option<&OpenPicker> {
+    pub fn picker(&self) -> Option<&Picker<CommandId>> {
         self.picker.as_ref()
     }
 

@@ -56,10 +56,10 @@ impl ResultsCache {
 mod tests {
     use super::*;
     use crate::domain::search_results::{PageToken, SearchPage};
-    use crate::search::SortOrder;
+    use crate::search::{SortField, SortOrder};
 
     fn by_name(query: &str) -> SearchRequest {
-        SearchRequest::new(query, SortOrder::Name)
+        SearchRequest::new(query, SortOrder::default())
     }
 
     fn finish_with_more(cache: &mut ResultsCache, request: &SearchRequest) {
@@ -105,7 +105,7 @@ mod tests {
     fn another_order_misses_and_switching_back_hits() {
         let mut cache = ResultsCache::new();
         let by_name = by_name("t:dragon");
-        let by_release = SearchRequest::new("t:dragon", SortOrder::Released);
+        let by_release = SearchRequest::new("t:dragon", SortOrder::new(SortField::Released, false));
         cache.begin(&by_name);
         finish_with_more(&mut cache, &by_name);
         assert_eq!(

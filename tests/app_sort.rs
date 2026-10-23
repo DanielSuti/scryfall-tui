@@ -1,9 +1,8 @@
-//! App-level tests of sorting the results, against the fake Scryfall.
+//! App-level tests of sorting with `,` and a letter, against the fake Scryfall.
 
 mod support;
 
-use scry::search::SortOrder;
-use scry::tui::keymap::mode::Mode;
+use scry::search::{SortField, SortOrder};
 use support::fake_scryfall::card_released;
 use support::harness::Harness;
 
@@ -20,83 +19,113 @@ fn last_request(h: &Harness) -> String {
 }
 
 #[tokio::test]
-async fn s_on_the_results_opens_the_sort_picker_on_the_current_order() {
+async fn comma_opens_the_sort_window_at_once_with_paired_keys() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
-    h.press("s");
-    let picker = h.app.picker().expect("the sort picker is open");
-    assert_eq!(
-        picker.labels(),
-        ["Name (A → Z)", "Release date (newest first)"]
-    );
-    assert_eq!(picker.selected_label(), Some("Name (A → Z)"));
-    assert_eq!(h.app.mode(), Mode::Insert);
+    h.press(",");
+    assert_eq!(h.app.which_key_title(), Some("Sort by"));
+    let entries = h.app.which_key_entries();
+    assert_eq!(entries.len(), SortField::ALL.len(), "one line per order");
+    let lines: Vec<String> = entries
+        .iter()
+        .map(|e| format!("{} {}", e.keys, e.description))
+        .collect();
+    assert_eq!(lines[0], "n/N Name: A → Z / Z → A");
+    assert!(lines.contains(&"d/D Release date: newest first / oldest first".to_owned()));
+    assert!(lines.contains(&"u/U USD price: highest first / lowest first".to_owned()));
     h.press("<Esc>");
-    assert!(h.app.picker().is_none());
+    assert!(h.app.which_key_entries().is_empty());
     assert_eq!(
         h.app.sort_order(),
-        SortOrder::Name,
+        SortOrder::default(),
         "cancelling changes nothing"
     );
 }
 
 #[tokio::test]
-async fn s_outside_the_results_does_nothing() {
+async fn comma_outside_the_results_does_nothing() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
-    h.press("2s");
-    assert!(h.app.picker().is_none());
+    h.press("2,");
+    assert!(h.app.which_key_entries().is_empty());
+    h.press("d");
+    assert_eq!(h.app.sort_order(), SortOrder::default());
 }
 
 #[tokio::test]
-async fn release_date_order_asks_scryfall_and_shows_newest_first() {
+async fn d_sorts_newest_first_and_upper_d_oldest_first() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
-    assert_eq!(h.result_names(), ["Mid Dragon", "New Dragon", "Old Dragon"]);
     assert!(
-        last_request(&h).ends_with("order=name"),
+        last_request(&h).ends_with("order=name&dir=auto"),
         "{}",
         last_request(&h)
     );
-    h.press("s<Down><CR>");
+    assert_eq!(h.result_names(), ["Mid Dragon", "New Dragon", "Old Dragon"]);
+    h.press(",d");
     h.settle().await;
-    assert_eq!(h.fake.request_count(), 2);
     assert!(
-        last_request(&h).ends_with("order=released"),
+        last_request(&h).ends_with("order=released&dir=auto"),
         "{}",
         last_request(&h)
     );
     assert_eq!(h.result_names(), ["New Dragon", "Mid Dragon", "Old Dragon"]);
     assert!(
-        h.status_line().contains("by release date"),
+        h.status_line().contains("by release date, newest first"),
         "{}",
         h.status_line()
     );
-    assert_eq!(h.app.mode(), Mode::Normal);
+    h.press(",D");
+    h.settle().await;
+    assert!(
+        last_request(&h).ends_with("order=released&dir=asc"),
+        "{}",
+        last_request(&h)
+    );
+    assert_eq!(h.result_names(), ["Old Dragon", "Mid Dragon", "New Dragon"]);
+    assert!(
+        h.status_line().contains("oldest first"),
+        "{}",
+        h.status_line()
+    );
 }
 
 #[tokio::test]
-async fn switching_back_comes_from_the_cache() {
+async fn upper_n_sorts_names_in_reverse_and_n_comes_back_from_the_cache() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
-    h.press("s<Down><CR>");
+    h.press(",N");
     h.settle().await;
-    h.press("s<Up><CR>");
+    assert!(
+        last_request(&h).ends_with("order=name&dir=desc"),
+        "{}",
+        last_request(&h)
+    );
+    assert_eq!(h.result_names(), ["Old Dragon", "New Dragon", "Mid Dragon"]);
+    h.press(",n");
     h.settle().await;
-    assert_eq!(h.fake.request_count(), 2, "name order is cached");
+    assert_eq!(h.fake.request_count(), 2, "name A → Z is cached");
     assert_eq!(h.result_names(), ["Mid Dragon", "New Dragon", "Old Dragon"]);
-    assert!(h.status_line().contains("by name"), "{}", h.status_line());
+}
+
+#[tokio::test]
+async fn sort_keys_work_in_the_split() {
+    let mut h = Harness::start(dragons(), 175, 6).await;
+    h.search("dragon").await;
+    h.press("<CR>,d");
+    h.settle().await;
+    assert_eq!(h.result_names(), ["New Dragon", "Mid Dragon", "Old Dragon"]);
 }
 
 #[tokio::test]
 async fn the_order_stays_for_later_searches_and_history_keeps_queries_only() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
-    h.press("s<Down><CR>");
+    h.press(",d");
     h.settle().await;
     h.search("old").await;
     assert!(
-        last_request(&h).ends_with("order=released"),
+        last_request(&h).ends_with("order=released&dir=auto"),
         "{}",
         last_request(&h)
     );
@@ -111,9 +140,9 @@ async fn the_order_stays_for_later_searches_and_history_keeps_queries_only() {
 }
 
 #[tokio::test]
-async fn renders_sort_picker() {
+async fn renders_sort_window() {
     let mut h = Harness::start(dragons(), 175, 6).await;
     h.search("dragon").await;
-    h.press("s");
+    h.press(",");
     insta::assert_snapshot!(h.render());
 }

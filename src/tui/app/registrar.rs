@@ -39,6 +39,23 @@ impl Registrar<'_> {
         self.bind(mode, scope, keys, id)
     }
 
+    /// Gives the prefix `notation` a which-key `title`, shown at once when `instant` is true.
+    ///
+    /// # Errors
+    /// Returns an error for invalid notation.
+    pub fn describe_prefix(
+        &mut self,
+        mode: Mode,
+        scope: Scope,
+        notation: &str,
+        title: &'static str,
+        instant: bool,
+    ) -> Result<(), RegistrationError> {
+        Ok(self
+            .keymap
+            .describe_prefix(mode, scope, notation, title, instant)?)
+    }
+
     /// Binds each of `keys` to the registered command `id` in `mode` and `scope`.
     ///
     /// # Errors

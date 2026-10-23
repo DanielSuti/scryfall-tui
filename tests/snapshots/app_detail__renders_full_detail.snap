@@ -25,4 +25,4 @@ expression: h.render()
 "│                          │┃                                                                                  ┃"
 "│                          │┃                                                                                  ┃"
 "╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛"
-" NORMAL  │ [3] Detail │ 3 of 3 loaded │ by name                              ⏎ split · q back · J next · K prev "
+" NORMAL  │ [3] Detail │ 3 of 3 loaded │ by name, A → Z                       ⏎ split · q back · J next · K prev "

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use scry::scryfall::client::{RateLimits, ScryfallClient};
 use scry::search::api::ApiSearch;
-use scry::search::{CardSearch, SearchRequest, SortOrder};
+use scry::search::{CardSearch, SearchRequest, SortField, SortOrder};
 use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named, card_released};
 
 const NO_LIMITS: RateLimits = RateLimits {
@@ -16,7 +16,7 @@ const NO_LIMITS: RateLimits = RateLimits {
 };
 
 fn by_name(query: &str) -> SearchRequest {
-    SearchRequest::new(query, SortOrder::Name)
+    SearchRequest::new(query, SortOrder::default())
 }
 
 fn dragons(count: usize) -> Vec<serde_json::Value> {
@@ -68,11 +68,25 @@ async fn the_order_is_sent_to_scryfall() {
     let names = |page: scry::domain::search_results::SearchPage| -> Vec<String> {
         page.cards.iter().map(|c| c.display_name()).collect()
     };
-    let by_name = search.first_page(&by_name("dragon")).await.unwrap();
-    assert_eq!(names(by_name), ["Ancient Dragon", "Young Dragon"]);
-    let request = SearchRequest::new("dragon", SortOrder::Released);
-    let newest_first = search.first_page(&request).await.unwrap();
-    assert_eq!(names(newest_first), ["Young Dragon", "Ancient Dragon"]);
+    let mut sorted = Vec::new();
+    for (field, reversed) in [
+        (SortField::Name, false),
+        (SortField::Name, true),
+        (SortField::Released, false),
+        (SortField::Released, true),
+    ] {
+        let request = SearchRequest::new("dragon", SortOrder::new(field, reversed));
+        sorted.push(names(search.first_page(&request).await.unwrap()));
+    }
+    assert_eq!(
+        sorted,
+        [
+            ["Ancient Dragon", "Young Dragon"],
+            ["Young Dragon", "Ancient Dragon"],
+            ["Young Dragon", "Ancient Dragon"],
+            ["Ancient Dragon", "Young Dragon"],
+        ]
+    );
     let paths: Vec<String> = fake
         .received()
         .into_iter()
@@ -81,8 +95,10 @@ async fn the_order_is_sent_to_scryfall() {
     assert_eq!(
         paths,
         [
-            "/cards/search?q=dragon&order=name",
-            "/cards/search?q=dragon&order=released"
+            "/cards/search?q=dragon&order=name&dir=auto",
+            "/cards/search?q=dragon&order=name&dir=desc",
+            "/cards/search?q=dragon&order=released&dir=auto",
+            "/cards/search?q=dragon&order=released&dir=asc",
         ]
     );
 }

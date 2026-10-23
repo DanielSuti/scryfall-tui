@@ -98,14 +98,6 @@ impl<T: Clone> Picker<T> {
         Some(self.items[index].0.as_str())
     }
 
-    /// Moves the cursor to the first matching item whose value satisfies `pred`. Leaves the
-    /// cursor in place when none does.
-    pub fn select_where(&mut self, pred: impl Fn(&T) -> bool) {
-        if let Some(row) = self.matches.iter().position(|i| pred(&self.items[*i].1)) {
-            self.list.select(row, PICKER_VIEWPORT);
-        }
-    }
-
     fn refilter(&mut self) {
         let pattern = Pattern::parse(self.query(), CaseMatching::Smart, Normalization::Smart);
         let labeled = self
@@ -280,15 +272,6 @@ mod tests {
             press(&mut picker, KeyCode::Enter, KeyModifiers::NONE),
             PickerOutcome::Selected(2)
         );
-    }
-
-    #[test]
-    fn select_where_moves_the_cursor_to_the_value() {
-        let mut picker = picker();
-        picker.select_where(|v| *v == 3);
-        assert_eq!(picker.selected_label(), Some("Search the focused panel"));
-        picker.select_where(|v| *v == 99);
-        assert_eq!(picker.selected_label(), Some("Search the focused panel"));
     }
 
     #[test]

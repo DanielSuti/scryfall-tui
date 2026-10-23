@@ -1,0 +1,28 @@
+---
+source: tests/app_sort.rs
+expression: h.render()
+---
+"╭ [1] Search ──────────────────────────────────────────────────────────────────────────────────────────────────╮"
+"│ dragon                                                                                                       │"
+"╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯"
+"╭ [2] History ─────────────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓"
+"│▌dragon                  3│┃▌Mid Dragon                                                    {3}{R}{R}  Creature┃"
+"│                          │┃ New Dragon                                                    {3}{R}{R}  Creature┃"
+"│                          │┃ Old Dragon             ╭ Sort by ────────────────────────────────────────────────╮"
+"│                          │┃                        │ n/N Name: A → Z / Z → A                                 │"
+"│                          │┃                        │ s/S Set: A → Z / Z → A                                  │"
+"│                          │┃                        │ d/D Release date: newest first / oldest first           │"
+"│                          │┃                        │ r/R Rarity: mythic first / common first                 │"
+"│                          │┃                        │ c/C Color: WUBRG first / colorless first                │"
+"│                          │┃                        │ m/M Mana value: lowest first / highest first            │"
+"│                          │┃                        │ p/P Power: lowest first / highest first                 │"
+"│                          │┃                        │ t/T Toughness: lowest first / highest first             │"
+"│                          │┃                        │ u/U USD price: highest first / lowest first             │"
+"│                          │┃                        │ e/E EUR price: highest first / lowest first             │"
+"│                          │┃                        │ x/X TIX price: highest first / lowest first             │"
+"│                          │┃                        │ h/H EDHREC rank: most played first / least played first │"
+"│                          │┃                        │ y/Y Penny rank: most played first / least played first  │"
+"│                          │┃                        │ a/A Artist: A → Z / Z → A                               │"
+"│                          │┃                        │ v/V Set review: review order / reverse review order     │"
+"╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━╰─────────────────────────────────────────────────────────╯"
+" NORMAL  │ [3] Results │ 3 of 3 loaded │ by name, A → Z                             d detail · ⏎ split · q quit "

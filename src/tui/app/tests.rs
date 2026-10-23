@@ -279,13 +279,10 @@ fn hints_follow_the_main_view() {
     let mut app = sized(112, 12);
     assert_eq!(
         app.hints_for(app.focused_scope()),
-        ["d detail", "⏎ split", "q quit", "s sort"]
+        ["d detail", "⏎ split", "q quit"]
     );
     press(&mut app, "<CR>");
-    assert_eq!(
-        app.hints_for(app.focused_scope()),
-        ["d detail", "q back", "s sort"]
-    );
+    assert_eq!(app.hints_for(app.focused_scope()), ["d detail", "q back"]);
     press(&mut app, "d");
     assert_eq!(
         app.hints_for(app.focused_scope()),
@@ -419,7 +416,7 @@ fn keymaps_picker_lists_every_command_and_runs_the_choice() {
     let mut app = sized(112, 20);
     press(&mut app, "<leader>sk");
     let picker = app.picker().expect("picker is open");
-    let labels = picker.labels();
+    let labels = picker.matching_labels();
     assert_eq!(labels.len(), app.commands().iter().count());
     for (label, command) in labels.iter().zip(app.commands().iter()) {
         assert!(label.ends_with(command.description.as_ref()), "{label}");
