@@ -2,12 +2,12 @@
 
 use ratatui::Frame;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::Line;
 
-use crate::tui::layout::panel_block;
 use crate::tui::text::truncate;
+use crate::tui::theme::Theme;
 use crate::tui::widgets::query_input::QueryInput;
+use ratatui::widgets::Block;
 
 /// The query input of the search bar.
 #[derive(Debug, Clone, Default)]
@@ -41,28 +41,25 @@ impl SearchBar {
         self.input.handle_key(key);
     }
 
-    /// Draws the bar with `title`, with a heavy border when `focused` and the terminal cursor
-    /// when `editing`. Non-empty `base` terms, which every search adds, are shown dimmed on the
-    /// right of the top border as `+ base`, cut with `...` to at most half the width.
+    /// Draws the bar inside `block`, the panel's border and title, with the terminal cursor
+    /// when `editing`. Non-empty `base` terms, which every search adds, are shown in
+    /// `theme.dim` on the right of the top border as `+ base`, cut with `...` to at most half
+    /// the width.
     pub fn render(
         &self,
         frame: &mut Frame,
         area: Rect,
-        title: String,
+        block: Block<'static>,
         base: &str,
-        focused: bool,
         editing: bool,
+        theme: &Theme,
     ) {
-        let mut block = panel_block(title, focused);
+        let mut block = block;
         let base = base.trim();
         if !base.is_empty() {
             let room = usize::from(area.width / 2).saturating_sub(5);
             let note = format!(" + {} ", truncate(base, room));
-            block = block.title_top(
-                Line::from(note)
-                    .style(Style::default().add_modifier(Modifier::DIM))
-                    .right_aligned(),
-            );
+            block = block.title_top(Line::from(note).style(theme.dim).right_aligned());
         }
         let inner = block.inner(area);
         frame.render_widget(block, area);

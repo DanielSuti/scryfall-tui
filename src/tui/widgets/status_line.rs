@@ -2,12 +2,12 @@
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
 
 use crate::tui::keymap::mode::Mode;
 use crate::tui::text::{display_width, truncate};
+use crate::tui::theme::Theme;
 
 /// How a status message is styled.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +49,7 @@ impl StatusMessage {
 /// left. The key hints sit on the right and are cut with `...` when they don't fit.
 #[derive(Debug, Clone)]
 pub struct StatusLine<'a> {
+    theme: &'a Theme,
     mode: Mode,
     sections: Vec<String>,
     message: Option<&'a StatusMessage>,
@@ -56,9 +57,11 @@ pub struct StatusLine<'a> {
 }
 
 impl<'a> StatusLine<'a> {
-    /// Creates a status line for `mode` with no sections, message or hints.
-    pub fn new(mode: Mode) -> Self {
+    /// Creates a status line for `mode`, drawn with `theme`, with no sections, message or
+    /// hints.
+    pub fn new(mode: Mode, theme: &'a Theme) -> Self {
         Self {
+            theme,
             mode,
             sections: Vec::new(),
             message: None,
@@ -92,15 +95,15 @@ impl Widget for StatusLine<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let mut left = vec![Span::styled(
             format!(" {} ", self.mode.label()),
-            Style::default().add_modifier(Modifier::BOLD | Modifier::REVERSED),
+            self.theme.mode,
         )];
         for section in &self.sections {
             left.push(Span::raw(format!(" │ {section}")));
         }
         if let Some(message) = self.message {
             let style = match message.severity {
-                Severity::Info => Style::default(),
-                Severity::Error => Style::default().fg(Color::Red),
+                Severity::Info => self.theme.info,
+                Severity::Error => self.theme.error,
             };
             left.push(Span::styled(format!("  {}", message.text), style));
         }
@@ -142,7 +145,7 @@ mod tests {
     fn layout_puts_hints_on_the_right() {
         let hints = vec!["d detail".to_owned(), "q quit".to_owned()];
         let text = render(
-            StatusLine::new(Mode::Normal)
+            StatusLine::new(Mode::Normal, &Theme::default())
                 .section("[3] Results")
                 .hints(&hints),
             50,
@@ -156,7 +159,10 @@ mod tests {
     #[test]
     fn hints_that_do_not_fit_are_cut() {
         let hints = vec!["d detail".to_owned(), "q quit".to_owned()];
-        let text = render(StatusLine::new(Mode::Normal).hints(&hints), 20);
+        let text = render(
+            StatusLine::new(Mode::Normal, &Theme::default()).hints(&hints),
+            20,
+        );
         // 20 columns minus the mode and a two-column gap leaves 10 for the hints.
         assert_eq!(
             text,

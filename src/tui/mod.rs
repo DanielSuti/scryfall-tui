@@ -8,5 +8,6 @@ pub mod main_panel;
 pub mod picker;
 pub mod terminal;
 pub mod text;
+pub mod theme;
 pub mod views;
 pub mod widgets;

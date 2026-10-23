@@ -4,9 +4,10 @@ use std::ops::Range;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Widget;
+
+use crate::tui::theme::Theme;
 
 /// A cursor movement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -38,15 +39,35 @@ pub struct ItemList {
     rows: Vec<String>,
     cursor: usize,
     offset: usize,
+    unfocused: UnfocusedCursor,
 }
 
-/// The marker drawn in front of the row under the cursor.
+/// The marker drawn in front of the cursor row of an unfocused list that shows it.
 pub const CURSOR_MARKER: &str = "▌";
 
+/// What the cursor row of a list looks like while the list doesn't have focus. With focus,
+/// the row is always highlighted with the theme's `selected_row` style.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum UnfocusedCursor {
+    /// [`CURSOR_MARKER`] in a column kept in front of every row.
+    #[default]
+    Marker,
+    /// Nothing; the list has no marker column.
+    Hidden,
+}
+
 impl ItemList {
-    /// Creates an empty list.
+    /// Creates an empty list showing the marker while unfocused.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Creates an empty list whose cursor row looks like `unfocused` while unfocused.
+    pub fn with_unfocused(unfocused: UnfocusedCursor) -> Self {
+        Self {
+            unfocused,
+            ..Self::default()
+        }
     }
 
     /// Replaces the rows. The cursor stays on its index, clamped to the new length.
@@ -130,34 +151,46 @@ impl ItemList {
         start..(start + viewport).min(self.rows.len())
     }
 
+    /// Returns the columns in front of each row: 1 for the marker column, or 0.
+    pub fn marker_width(&self) -> usize {
+        usize::from(self.unfocused == UnfocusedCursor::Marker)
+    }
+
     /// Draws the visible rows into `area`. `line` formats the row at an index to fit the given
-    /// width. The row under the cursor gets the marker, and is bold when `focused`.
+    /// width. With `focused`, the cursor row is filled across the whole width with
+    /// `theme.selected_row`; without, it looks as the list's [`UnfocusedCursor`] says.
     pub fn render(
         &self,
         area: Rect,
         buf: &mut Buffer,
         focused: bool,
+        theme: &Theme,
         line: impl Fn(usize, usize) -> Line<'static>,
     ) {
-        let width = usize::from(area.width).saturating_sub(1);
+        let marker_width = self.marker_width();
+        let width = usize::from(area.width).saturating_sub(marker_width);
         for (row, index) in self.visible_range(usize::from(area.height)).enumerate() {
             let Ok(row) = u16::try_from(row) else { break };
+            let row_area = Rect {
+                y: area.y + row,
+                height: 1,
+                ..area
+            };
             let selected = index == self.cursor;
-            let marker = if selected { CURSOR_MARKER } else { " " };
-            let mut spans = vec![Span::raw(marker)];
-            spans.extend(line(index, width).spans);
-            let mut rendered = Line::from(spans);
-            if selected && focused {
-                rendered = rendered.style(Style::default().add_modifier(Modifier::BOLD));
+            let mut spans = Vec::new();
+            if marker_width > 0 {
+                let marker = if selected && !focused {
+                    CURSOR_MARKER
+                } else {
+                    " "
+                };
+                spans.push(Span::raw(marker));
             }
-            rendered.render(
-                Rect {
-                    y: area.y + row,
-                    height: 1,
-                    ..area
-                },
-                buf,
-            );
+            spans.extend(line(index, width).spans);
+            Line::from(spans).render(row_area, buf);
+            if selected && focused {
+                buf.set_style(row_area, theme.selected_row);
+            }
         }
     }
 }
@@ -165,11 +198,65 @@ impl ItemList {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::style::{Color, Modifier};
 
     fn list(len: usize) -> ItemList {
         let mut list = ItemList::new();
         list.set_rows((0..len).map(|i| format!("row {i}")).collect());
         list
+    }
+
+    /// Draws `list` into a 10 by 3 buffer and returns it.
+    fn draw(list: &ItemList, focused: bool) -> Buffer {
+        let area = Rect::new(0, 0, 10, 3);
+        let mut buf = Buffer::empty(area);
+        let rows = list.rows().to_vec();
+        list.render(area, &mut buf, focused, &Theme::default(), move |i, _| {
+            Line::from(rows[i].clone())
+        });
+        buf
+    }
+
+    fn row_text(buf: &Buffer, y: u16) -> String {
+        (0..buf.area.width).map(|x| buf[(x, y)].symbol()).collect()
+    }
+
+    #[test]
+    fn the_focused_cursor_row_is_highlighted_across_the_width_without_marker() {
+        let mut list = list(3);
+        list.apply(Motion::Down, 3);
+        let buf = draw(&list, true);
+        let selected = Theme::default().selected_row;
+        for x in 0..10 {
+            assert_eq!(
+                buf[(x, 1)].bg,
+                selected.bg.unwrap(),
+                "cell {x} of the cursor row"
+            );
+            assert!(buf[(x, 1)].modifier.contains(Modifier::BOLD));
+            assert_eq!(buf[(x, 0)].bg, Color::Reset, "cell {x} of another row");
+        }
+        assert!(!row_text(&buf, 1).contains(CURSOR_MARKER));
+        assert_eq!(row_text(&buf, 1), " row 1    ");
+    }
+
+    #[test]
+    fn an_unfocused_list_shows_the_marker_or_nothing() {
+        let mut marked = list(3);
+        marked.apply(Motion::Down, 3);
+        let buf = draw(&marked, false);
+        assert_eq!(row_text(&buf, 1), "▌row 1    ");
+        assert!((0..10).all(|x| buf[(x, 1)].bg == Color::Reset));
+
+        let mut hidden = ItemList::with_unfocused(UnfocusedCursor::Hidden);
+        hidden.set_rows(vec!["row 0".into(), "row 1".into()]);
+        hidden.apply(Motion::Down, 3);
+        let buf = draw(&hidden, false);
+        assert_eq!(row_text(&buf, 1), "row 1     ", "no marker column");
+        assert!((0..10).all(|x| buf[(x, 1)].bg == Color::Reset));
+        let buf = draw(&hidden, true);
+        assert_eq!(row_text(&buf, 1), "row 1     ");
+        assert!((0..10).all(|x| buf[(x, 1)].bg == Color::Blue));
     }
 
     #[test]

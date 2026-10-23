@@ -8,6 +8,7 @@ use crate::domain::card::Card;
 use crate::domain::search_results::{LoadState, SearchResults};
 use crate::search::SearchRequest;
 use crate::tui::text::{display_width, truncate};
+use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::{Navigable, Searchable};
 
@@ -84,7 +85,8 @@ impl ResultsView {
 
     /// Draws the visible rows into `area`, in columns of name, cost and card types. Cells that
     /// don't fit are cut with `...`. When nothing matched, the source's notice is drawn instead.
-    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool) {
+    /// The cursor row is highlighted with `theme` when `focused`, and marked otherwise.
+    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool, theme: &Theme) {
         if self.rows.is_empty() {
             if let Some(notice) = &self.notice {
                 let width = usize::from(area.width).saturating_sub(1);
@@ -93,9 +95,9 @@ impl ResultsView {
             }
             return;
         }
-        let width = usize::from(area.width).saturating_sub(1);
+        let width = usize::from(area.width).saturating_sub(self.list.marker_width());
         let widths = self.column_widths(width);
-        self.list.render(area, buf, focused, |index, _| {
+        self.list.render(area, buf, focused, theme, |index, _| {
             let row = &self.rows[index];
             let mut cells = vec![
                 pad(&truncate(&row.name, widths.name), widths.name),

@@ -7,14 +7,24 @@ use ratatui::text::Line;
 use crate::app::history::{History, HistoryEntry};
 use crate::domain::card::MISSING;
 use crate::tui::text::{display_width, truncate};
-use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
+use crate::tui::theme::Theme;
+use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome, UnfocusedCursor};
 use crate::tui::widgets::pane_search::{Navigable, Searchable};
 
-/// The history entries with the cursor.
-#[derive(Debug, Clone, Default)]
+/// The history entries with the cursor. While unfocused the history shows no selection.
+#[derive(Debug, Clone)]
 pub struct HistoryView {
     entries: Vec<HistoryEntry>,
     list: ItemList,
+}
+
+impl Default for HistoryView {
+    fn default() -> Self {
+        Self {
+            entries: Vec::new(),
+            list: ItemList::with_unfocused(UnfocusedCursor::Hidden),
+        }
+    }
 }
 
 /// Formats a result count compactly: exact below 1,000, then `2.1k` and `1.2M`. An unknown
@@ -57,9 +67,10 @@ impl HistoryView {
     }
 
     /// Draws the entries into `area`: the query on the left, cut with `...` when it doesn't
-    /// fit, and the count on the right.
-    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool) {
-        self.list.render(area, buf, focused, |index, width| {
+    /// fit, and the count on the right. The cursor row is highlighted with `theme` when
+    /// `focused`.
+    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool, theme: &Theme) {
+        self.list.render(area, buf, focused, theme, |index, width| {
             let entry = &self.entries[index];
             let count = compact_count(entry.total_cards);
             let query_width = width.saturating_sub(display_width(&count) + 1);
