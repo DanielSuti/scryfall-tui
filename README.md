@@ -161,7 +161,7 @@ max_entries = 100               # entries kept, at least 1
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
 
 [detail.rulings]
-mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d
+mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d; "never"
 pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
 ```
 

@@ -2,7 +2,7 @@
 
 mod support;
 
-use scry::app::config::{Config, RulingsMode};
+use scry::app::config::{Config, LoadMode};
 use support::fake_scryfall::{card_named, ruling};
 use support::harness::Harness;
 
@@ -17,7 +17,7 @@ fn cards() -> Vec<serde_json::Value> {
 }
 
 /// Starts with `mode` and a short pause, and searches for every card.
-async fn start(mode: RulingsMode) -> Harness {
+async fn start(mode: LoadMode) -> Harness {
     let mut config = Config::default();
     config.search.base = String::new();
     config.detail.rulings.mode = mode;
@@ -43,7 +43,7 @@ fn rulings_requested(h: &Harness) -> Vec<String> {
 
 #[tokio::test]
 async fn auto_mode_fetches_once_the_cursor_rests() {
-    let mut h = start(RulingsMode::Auto).await;
+    let mut h = start(LoadMode::Auto).await;
     h.press("<CR>");
     assert!(detail_has(&h, "Rulings: loading..."));
     h.press("j");
@@ -62,7 +62,7 @@ async fn auto_mode_fetches_once_the_cursor_rests() {
 
 #[tokio::test]
 async fn known_rulings_are_not_fetched_again() {
-    let mut h = start(RulingsMode::Auto).await;
+    let mut h = start(LoadMode::Auto).await;
     h.press("<CR>");
     h.tick_at_deadline().await;
     h.next_event().await;
@@ -78,7 +78,7 @@ async fn known_rulings_are_not_fetched_again() {
 
 #[tokio::test]
 async fn full_detail_mode_fetches_only_in_the_full_detail_and_at_once() {
-    let mut h = start(RulingsMode::FullDetail).await;
+    let mut h = start(LoadMode::FullDetail).await;
     h.press("j<CR>");
     assert!(!detail_has(&h, "Rulings"), "{:#?}", h.app.detail_lines());
     assert_eq!(h.app.next_deadline(), None);
@@ -96,7 +96,7 @@ async fn full_detail_mode_fetches_only_in_the_full_detail_and_at_once() {
 
 #[tokio::test]
 async fn a_failure_is_shown_and_retried_when_the_card_is_shown_again() {
-    let mut h = start(RulingsMode::Auto).await;
+    let mut h = start(LoadMode::Auto).await;
     h.fake.fail_rulings("id-dragon-mage", true);
     h.press("<CR>");
     h.tick_at_deadline().await;
@@ -112,4 +112,16 @@ async fn a_failure_is_shown_and_retried_when_the_card_is_shown_again() {
     h.next_event().await;
     assert!(detail_has(&h, "No rulings"), "{:#?}", h.app.detail_lines());
     assert_eq!(rulings_requested(&h).len(), 2);
+}
+
+#[tokio::test]
+async fn never_mode_fetches_nothing() {
+    let mut h = start(LoadMode::Never).await;
+    h.press("<CR>");
+    assert!(!detail_has(&h, "Rulings"), "{:#?}", h.app.detail_lines());
+    assert_eq!(h.app.next_deadline(), None);
+    h.press("d");
+    assert!(!detail_has(&h, "Rulings"), "{:#?}", h.app.detail_lines());
+    assert_eq!(h.app.next_deadline(), None);
+    assert!(rulings_requested(&h).is_empty());
 }

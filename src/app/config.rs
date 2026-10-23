@@ -99,16 +99,18 @@ impl Default for DetailConfig {
     }
 }
 
-/// When the detail fetches the rulings of the card it shows.
+/// When the detail loads data beyond the card itself, such as its rulings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RulingsMode {
+pub enum LoadMode {
     /// In the split and the full detail, once the cursor has rested on the card for
     /// `pause_ms`.
     #[default]
     Auto,
     /// Only in the full detail, as soon as it opens.
     FullDetail,
+    /// Never.
+    Never,
 }
 
 /// The `[detail.rulings]` table.
@@ -116,7 +118,7 @@ pub enum RulingsMode {
 #[serde(default, deny_unknown_fields)]
 pub struct RulingsConfig {
     /// When rulings are fetched.
-    pub mode: RulingsMode,
+    pub mode: LoadMode,
     /// In `auto` mode, how long the cursor rests on a card before its rulings are fetched, in
     /// milliseconds. 0 fetches them at once.
     pub pause_ms: u64,
@@ -132,7 +134,7 @@ impl RulingsConfig {
 impl Default for RulingsConfig {
     fn default() -> Self {
         Self {
-            mode: RulingsMode::Auto,
+            mode: LoadMode::Auto,
             pause_ms: DEFAULT_RULINGS_PAUSE_MS,
         }
     }
@@ -227,7 +229,7 @@ mod tests {
         assert_eq!(Config::default().history.max_entries.get(), 100);
         assert_eq!(Config::default().detail.formats.len(), 9);
         let rulings = Config::default().detail.rulings;
-        assert_eq!(rulings.mode, RulingsMode::Auto);
+        assert_eq!(rulings.mode, LoadMode::Auto);
         assert_eq!(rulings.pause(), Duration::from_millis(300));
     }
 
@@ -249,13 +251,15 @@ mod tests {
         assert_eq!(config.history.max_entries.get(), 5);
         assert_eq!(config.detail.formats, ["modern"]);
         let rulings = parse("[detail.rulings]\nmode = \"full_detail\"\npause_ms = 0").unwrap();
-        assert_eq!(rulings.detail.rulings.mode, RulingsMode::FullDetail);
+        assert_eq!(rulings.detail.rulings.mode, LoadMode::FullDetail);
         assert_eq!(rulings.detail.rulings.pause(), Duration::ZERO);
         assert_eq!(
             rulings.detail.formats.len(),
             9,
             "the formats keep their default"
         );
+        let never = parse("[detail.rulings]\nmode = \"never\"").unwrap();
+        assert_eq!(never.detail.rulings.mode, LoadMode::Never);
     }
 
     #[test]
@@ -270,6 +274,7 @@ mod tests {
             ("[search]\nmax_page = 2", "max_page"),
             ("colour = true", "colour"),
             ("[detail.rulings]\nmode = \"split\"", "full_detail"),
+            ("[detail.rulings]\nmode = \"split\"", "never"),
             ("[detail.rulings]\npause_ms = -1", "pause_ms"),
             ("[detail.rulings]\ndelay = 1", "delay"),
         ] {

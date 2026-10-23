@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
-use crate::app::config::RulingsMode;
+use crate::app::config::LoadMode;
 use crate::domain::card::Card;
 use crate::domain::ruling::{Ruling, RulingsState};
 use crate::search::MAX_RATE_LIMIT_RETRIES;
@@ -51,8 +51,9 @@ impl App {
 
     /// Prepares the rulings of `card`, the card the detail shows, or of no card. In `auto`
     /// mode a fetch starts once the cursor has rested for `pause_ms`; in `full_detail` mode it
-    /// starts at once in the full detail and not at all in the split. Rulings already known
-    /// are not fetched again, except after a failure when the card is shown anew.
+    /// starts at once in the full detail and not at all in the split; in `never` mode it
+    /// never starts. Rulings already known are not fetched again, except after a failure when
+    /// the card is shown anew.
     pub(super) fn schedule_rulings(&mut self, card: Option<&Card>) {
         let key = card.map(rulings_key);
         let shown_anew = key != self.rulings_shown;
@@ -66,11 +67,11 @@ impl App {
         }
         let settings = &self.config.detail.rulings;
         let pause = match settings.mode {
-            RulingsMode::Auto => settings.pause(),
-            RulingsMode::FullDetail if self.main_view == MainView::FullDetail => {
+            LoadMode::Auto => settings.pause(),
+            LoadMode::FullDetail if self.main_view == MainView::FullDetail => {
                 std::time::Duration::ZERO
             }
-            RulingsMode::FullDetail => {
+            LoadMode::FullDetail | LoadMode::Never => {
                 self.pending_rulings = None;
                 return;
             }
