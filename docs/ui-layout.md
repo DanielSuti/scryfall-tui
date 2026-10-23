@@ -142,7 +142,8 @@ Text that does not fit its column ends in `...`. Anything after it on the same l
 
 `s` in normal mode, in any panel, starts a flash jump, as in LazyVim's flash.nvim. All panel text is dimmed and the status line shows `⚡`. Type a few characters: every place on screen showing them lights up, in the search bar, the history, the results and the detail. Each gets a one-letter label on the character after it. Type a label to jump there: the focus moves to that panel and its cursor to that line. A jump into the search bar puts the text cursor on the match in insert mode; a jump into the detail scrolls that line to the top.
 
-- **`<Enter>`** jumps to the match nearest the cursor, drawn in orange.
+- **`<Enter>`** jumps to the match nearest the cursor, drawn in reversed yellow.
+- **Colors** come from your terminal's palette, so flash follows its theme: grey text, blue matches, a yellow nearest match and magenta labels, as LazyVim colors flash.
 - **Letters that would continue a match** are never labels, so typing on narrows the matches.
 - **Labels** go to the nearest matches first, `asdfghjkl...` and then uppercase. Matches beyond the labels get one once you type more.
 - **`<BS>`** deletes a character, and **`<Esc>`** closes flash without moving.

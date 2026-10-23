@@ -1,4 +1,14 @@
 //! The styles the interface is drawn with.
+//!
+//! Every color is a slot of the terminal's 16-color palette, or the terminal's own default
+//! foreground and background, so the interface follows the terminal's color theme. No style
+//! names a fixed color: where text sits on a colored background, it keeps the default
+//! foreground, or is reversed so it takes the terminal's background color.
+//!
+//! The flash styles follow LazyVim's flash.nvim groups and the tokyonight colors LazyVim gives
+//! them, each mapped to the palette slot of the same hue: `FlashBackdrop` (`Comment`, grey) is
+//! bright black, `FlashMatch` (`Search`) blue, `FlashCurrent` (`IncSearch`, orange) yellow, and
+//! `FlashLabel` magenta.
 
 use ratatui::style::{Color, Modifier, Style};
 
@@ -25,13 +35,15 @@ pub struct Theme {
     /// The position of the current line among the matching lines, such as `[2/9]`: a badge
     /// with a magenta background and text in the terminal's background color.
     pub find_position: Style,
-    /// Panel text while flash is open, as flash.nvim's `FlashBackdrop`.
+    /// Panel text while flash is open, as flash.nvim's `FlashBackdrop`: bright black, the
+    /// palette's grey.
     pub flash_backdrop: Style,
-    /// Text that flash matches, as flash.nvim's `FlashMatch`.
+    /// Text that flash matches, as flash.nvim's `FlashMatch`: the default foreground on blue.
     pub flash_match: Style,
-    /// The match nearest the cursor, which `<Enter>` jumps to, as flash.nvim's `FlashCurrent`.
+    /// The match nearest the cursor, which `<Enter>` jumps to, as flash.nvim's `FlashCurrent`:
+    /// yellow, reversed, so the text takes the terminal's background color.
     pub flash_current: Style,
-    /// A flash jump label, as flash.nvim's `FlashLabel`.
+    /// A flash jump label, as flash.nvim's `FlashLabel`: the default foreground on magenta, bold.
     pub flash_label: Style,
 }
 
@@ -56,13 +68,74 @@ impl Default for Theme {
                 .bg(Color::Reset)
                 .add_modifier(Modifier::BOLD.union(Modifier::REVERSED)),
             flash_backdrop: Style::new().fg(Color::DarkGray),
-            flash_match: Style::new().fg(Color::White).bg(Color::Blue),
-            // 256-color orange, the closest to flash.nvim's FlashCurrent.
-            flash_current: Style::new().fg(Color::Black).bg(Color::Indexed(208)),
+            flash_match: Style::new().fg(Color::Reset).bg(Color::Blue),
+            flash_current: Style::new()
+                .fg(Color::Yellow)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::REVERSED),
             flash_label: Style::new()
-                .fg(Color::White)
+                .fg(Color::Reset)
                 .bg(Color::Magenta)
                 .add_modifier(Modifier::BOLD),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The 16 palette slots a terminal theme defines, and the terminal's defaults.
+    fn follows_the_terminal_theme(color: Option<Color>) -> bool {
+        matches!(
+            color,
+            None | Some(
+                Color::Reset
+                    | Color::Black
+                    | Color::Red
+                    | Color::Green
+                    | Color::Yellow
+                    | Color::Blue
+                    | Color::Magenta
+                    | Color::Cyan
+                    | Color::Gray
+                    | Color::DarkGray
+                    | Color::LightRed
+                    | Color::LightGreen
+                    | Color::LightYellow
+                    | Color::LightBlue
+                    | Color::LightMagenta
+                    | Color::LightCyan
+                    | Color::White
+            )
+        )
+    }
+
+    #[test]
+    fn every_style_uses_the_terminal_palette_and_no_forced_text_color() {
+        let t = Theme::default();
+        let styles = [
+            ("focus_border", t.focus_border),
+            ("selected_row", t.selected_row),
+            ("key", t.key),
+            ("mode", t.mode),
+            ("info", t.info),
+            ("error", t.error),
+            ("dim", t.dim),
+            ("find_keyword", t.find_keyword),
+            ("find_position", t.find_position),
+            ("flash_backdrop", t.flash_backdrop),
+            ("flash_match", t.flash_match),
+            ("flash_current", t.flash_current),
+            ("flash_label", t.flash_label),
+        ];
+        for (name, style) in styles {
+            assert!(follows_the_terminal_theme(style.fg), "{name}: {style:?}");
+            assert!(follows_the_terminal_theme(style.bg), "{name}: {style:?}");
+            // Black or white text would ignore the theme's own foreground and background.
+            for fixed in [Color::Black, Color::White] {
+                assert_ne!(style.fg, Some(fixed), "{name}: {style:?}");
+            }
         }
     }
 }
