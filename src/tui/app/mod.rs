@@ -1,6 +1,7 @@
 //! Application state and event handling.
 
 mod commands;
+pub mod config_window;
 mod detail_load;
 mod flash;
 mod history;
@@ -43,6 +44,7 @@ use crate::tui::layout::{
 use crate::tui::main_panel::{Back, MainView};
 use crate::tui::picker::picker::{Picker, PickerOutcome};
 use crate::tui::theme::Theme;
+use crate::tui::views::config_window::{CONFIG_TITLE, ConfigWindow};
 use crate::tui::views::detail::DetailView;
 use crate::tui::views::history::HistoryView;
 use crate::tui::views::results::{ResultsView, load_summary};
@@ -139,8 +141,12 @@ impl std::fmt::Debug for Services {
 pub struct App {
     theme: Theme,
     config: Config,
+    saved: Config,
+    config_path: Option<std::path::PathBuf>,
+    config_window: Option<ConfigWindow>,
     services: Option<Services>,
     image_picker: Option<ImagePicker>,
+    graphics_asked: bool,
     mode: Mode,
     quit: bool,
     commands: CommandRegistry<App>,
@@ -200,9 +206,13 @@ impl App {
         let max_history = config.history.max_entries;
         let mut app = Self {
             theme: Theme::default(),
+            saved: config.clone(),
             config,
+            config_path: None,
+            config_window: None,
             services: None,
             image_picker: None,
+            graphics_asked: false,
             mode: Mode::Normal,
             quit: false,
             commands: CommandRegistry::new(),
@@ -255,6 +265,14 @@ impl App {
     /// `None` when the terminal can't draw images, which hides them.
     pub fn set_image_picker(&mut self, picker: Option<ImagePicker>) {
         self.image_picker = picker;
+        self.graphics_asked = true;
+    }
+
+    /// Sets the config file the config window saves to. The app's configuration is taken as
+    /// the file's contents, so the window marks what differs from it.
+    pub fn set_config_path(&mut self, path: Option<std::path::PathBuf>) {
+        self.config_path = path;
+        self.saved = self.config.clone();
     }
 
     /// Returns the configuration the app was started with.
@@ -569,6 +587,10 @@ impl App {
             self.handle_flash_key(event);
             return;
         }
+        if self.config_window.is_some() {
+            self.handle_config_key(event);
+            return;
+        }
         if let Some(picker) = self.picker.as_mut() {
             match picker.handle_key(event) {
                 PickerOutcome::Open => {}
@@ -709,7 +731,10 @@ impl App {
         frame.render_widget(block, areas.main);
         let entries = self.which_key_entries();
         // Popups drawn over the detail hide its image.
-        let covered = self.picker.is_some() || !entries.is_empty() || areas.overlay.is_some();
+        let covered = self.picker.is_some()
+            || self.config_window.is_some()
+            || !entries.is_empty()
+            || areas.overlay.is_some();
         if self.main_view == MainView::FullDetail {
             let search = self.pane_search_in(Panel::Main);
             self.detail
@@ -752,6 +777,18 @@ impl App {
                 ..status
             };
             prompt.render(frame, input, true);
+        } else if self.config_window.is_some() {
+            let hints = self.config_hints();
+            let changed = match self.unsaved_settings() {
+                0 => "no changes".to_owned(),
+                n => format!("{n} changed"),
+            };
+            let status = StatusLine::new(self.mode, &self.theme)
+                .section(CONFIG_TITLE)
+                .section(changed)
+                .message(self.message.as_ref())
+                .hints(&hints);
+            frame.render_widget(status, areas.status);
         } else {
             let hints = self.hints_for(self.focused_scope());
             let mut status =
@@ -772,6 +809,19 @@ impl App {
         }
         if let Some(picker) = &self.picker {
             picker.render(frame, frame.area(), &self.theme);
+        }
+        if let Some(window) = &self.config_window {
+            let body = Rect {
+                height: areas.status.y.saturating_sub(areas.search.y),
+                ..frame.area()
+            };
+            window.render(
+                body,
+                frame.buffer_mut(),
+                &self.config,
+                &self.saved,
+                &self.theme,
+            );
         }
         if !entries.is_empty() {
             let body = Rect {

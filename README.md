@@ -71,6 +71,7 @@ The focused panel has a heavy green border, and its selected line is bold on a b
 | `,` then a letter | Sort the results (see below) |
 | `s` | Jump to any text on screen (see below) |
 | `<Space>sk` | List every key and command |
+| `<Space>c` | Change settings for the session (see [Configuration](#configuration)) |
 | `Q` | Quit |
 
 **Search bar, in insert mode:** `<Enter>` runs the search and focuses the results, and `<Esc>` goes back to normal mode.
@@ -184,6 +185,8 @@ pause_ms = 50
 Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split or stepping with `J`/`K` doesn't fetch every card on the way. A view set to `trigger` fetches them only when you press `L`, which also skips the pause in `auto`, and shows rulings already fetched without it. A view set to `never` neither fetches them nor shows them, even when the other view already did. The same goes for images, and a split on `trigger` leaves no room for the image until `L`.
 
 Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `never` in both views skips that question. Terminals without one, such as Alacritty, show no image.
+
+`<Space>c` opens the config window, listing these settings with their values. `j`/`k` move, `<Tab>` and `<S-Tab>` step through preset values, and each change applies at once. `<Esc>` closes the window keeping the changes for the session, and `q` sets back what changed since it opened.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 

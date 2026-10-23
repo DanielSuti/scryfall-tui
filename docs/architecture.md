@@ -51,4 +51,10 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 4. A blocking task decodes them and encodes them for the protocol at the box's size. Only the shown card's encoding is kept; a result for another card or size is dropped.
 5. Drawing puts the encoded image into the box as a sliced image, so the split can scroll it partly out of view. Popups hide it.
 
+## Settings flow
+
+1. `app::settings::Setting` lists the settings the config window edits: each one's label, table and key, its value as text, its presets, and a validating setter.
+2. The config window, `tui::views::config_window` and `tui::app::config_window`, changes `App::config` through `App::apply_setting`. That setter also updates what depends on the setting, such as the history's length.
+3. `App` keeps the file's values as `saved`, which mark the changed settings. `app::config_file::save` writes chosen settings into the file with `toml_edit`, keeping the user's comments and order, starting a missing file from `DEFAULT_CONFIG`.
+
 The layout and keys are described in [ui-layout.md](ui-layout.md).

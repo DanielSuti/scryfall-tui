@@ -269,6 +269,7 @@ pub(super) fn register_all(
     super::search::register(&mut reg)?;
     super::history::register(&mut reg)?;
     super::sort::register(&mut reg)?;
+    super::config_window::register(&mut reg)?;
     super::flash::register(&mut reg)
 }
 

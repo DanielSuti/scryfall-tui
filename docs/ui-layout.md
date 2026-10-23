@@ -160,6 +160,7 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 | Normal mode, anywhere | `1` | Focus the search bar and keep the query, in insert mode. |
 | | `<leader>ss` | Focus the search bar and clear it, in insert mode. |
 | | `<leader>sk` | Keymaps picker. |
+| | `<leader>c` | Config window. See below. |
 | | `2` / `3` / `0` | Focus history (an overlay when hidden), the main panel, or the detail (split only). |
 | | `/`, `n`, `N` | Search the focused panel's text. Matches light up as you type and the cursor moves to the first one; `<Enter>` keeps the search, `<Esc>` in the prompt cancels it. A matching current line shows its position among the matching lines at its right end, such as `[2/9]`, as in yazi. Only the label itself has a magenta background, with text in the terminal's background color. |
 | | `<Esc>` | Clear the search highlight. |
@@ -221,6 +222,37 @@ Text that does not fit its column ends in `...`. Anything after it on the same l
 | `v` | Set review | review order | reverse review order |
 
 Choosing an order runs the displayed query again with Scryfall's `order` and `dir` parameters, so all matches are sorted, not only the loaded ones. Reversed price orders list cards without a price first, as Scryfall returns them. The order stays for the rest of the session, shows in the status line as, for example, `by release date, newest first`, and is not stored in the history.
+
+## Config window
+
+`<leader>c` in normal mode, in any panel, opens the config window over the bottom right of the body, as the sort window opens. It lists every setting with its value in the session, and marks with `•` the values that differ from the config file. The status line shows how many there are.
+
+```
+│                          │┃        ┏ Config ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│                          │┃        ┃ Terms added to every search  (none)                                     ┃
+│                          │┃        ┃ Pages per batch              4                                          ┃
+│                          │┃        ┃ History entries kept         40                                         ┃
+│                          │┃        ┃ Legality formats             standard, pioneer, modern, commander,...   ┃
+│                          │┃        ┃ Rulings in the split         never                                    • ┃
+│                          │┃        ┃ Rulings in the full detail   auto                                       ┃
+│                          │┃        ┃ Rulings pause (ms)           50                                         ┃
+│                          │┃        ┃ Images in the split          trigger                                    ┃
+│                          │┃        ┃ Images in the full detail    auto                                       ┃
+│                          │┃        ┃ Images pause (ms)            50                                         ┃
+╰──────────────────────────╯┗━━━━━━━━┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+ NORMAL  │ Config │ 1 changed                                   j/k move · ⇥ next value · <Esc> keep · q cancel
+```
+
+| Key | Action |
+|---|---|
+| `j`/`k`, `↓`/`↑` | Move between settings. |
+| `<Tab>` / `<S-Tab>` | Set the next or previous preset. A value that is no preset, such as one already in the file, takes a place in the cycle. |
+| `<Esc>` | Close, keeping the changes for the session. |
+| `q` | Close, setting back what changed since the window opened. |
+
+Presets: terms `game:paper -is:funny`, `game:paper` or none; pages per batch 1, 2, 4, 6 or 10; history 20, 40, 100 or 500 entries; formats the default nine, `commander` or none; `auto`, `trigger` or `never` for rulings and images in each view; pauses of 0, 50, 150, 300 or 500 ms.
+
+Each change applies at once. A smaller history drops its oldest entries and is saved, new formats are checked against the shown card, and the detail follows its new rulings and image settings. Images switched on in a session that started with both views on `never` show after a restart, because the terminal was not asked for a graphics protocol. Other keys do nothing while the window is open, and popups hide the card image.
 
 ## Panel contents
 
