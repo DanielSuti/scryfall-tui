@@ -41,3 +41,4 @@ All notable changes to this project are documented in this file, newest release 
 - `,` on the results opens a "Sort by" window, and a second key sorts by any of Scryfall's 15 orders, uppercase for reverse. Scryfall sorts all matches, and the order stays for the session.
 - Command handlers can capture values and descriptions can be built at run time, so one loop can register a family of related commands.
 - Which-key popups can carry a title and appear at once for chosen prefixes, and show a lowercase key and its uppercase twin on one line.
+- Tests that need real Scryfall data replay answers recorded once from the API, so no test calls Scryfall. An ignored recorder test refreshes the recordings.

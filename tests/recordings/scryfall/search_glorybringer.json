@@ -1,0 +1,68 @@
+{
+  "request": "/cards/search?q=%21%22Glorybringer%22&order=name&dir=auto",
+  "status": 200,
+  "body": {
+    "data": [
+      {
+        "artist": "Sam Burley",
+        "cmc": 5.0,
+        "collector_number": "215",
+        "colors": [
+          "R"
+        ],
+        "edhrec_rank": 7458,
+        "flavor_text": "What the initiates face in the final trial is completely at Hazoret's discretion.",
+        "id": "06f90d62-6d21-47b1-a427-eb25a42f4dcb",
+        "layout": "normal",
+        "legalities": {
+          "alchemy": "not_legal",
+          "brawl": "legal",
+          "commander": "legal",
+          "competitivebrawl": "legal",
+          "duel": "legal",
+          "future": "not_legal",
+          "gladiator": "legal",
+          "historic": "legal",
+          "legacy": "legal",
+          "modern": "legal",
+          "oathbreaker": "legal",
+          "oldschool": "not_legal",
+          "pauper": "not_legal",
+          "paupercommander": "not_legal",
+          "penny": "legal",
+          "pioneer": "legal",
+          "predh": "not_legal",
+          "premodern": "not_legal",
+          "standard": "not_legal",
+          "standardbrawl": "not_legal",
+          "timeless": "legal",
+          "tlr": "not_legal",
+          "vintage": "legal"
+        },
+        "mana_cost": "{3}{R}{R}",
+        "name": "Glorybringer",
+        "object": "card",
+        "oracle_id": "b75c3902-633e-4d24-acde-d7a9cc8f466e",
+        "oracle_text": "Flying, haste\nYou may exert this creature as it attacks. When you do, it deals 4 damage to target non-Dragon creature an opponent controls. (An exerted creature won't untap during your next untap step.)",
+        "penny_rank": 562,
+        "power": "4",
+        "prices": {
+          "eur": "0.27",
+          "eur_foil": null,
+          "tix": "0.12",
+          "usd": "0.31",
+          "usd_etched": null,
+          "usd_foil": null
+        },
+        "rarity": "rare",
+        "released_at": "2025-04-11",
+        "set": "tdc",
+        "toughness": "4",
+        "type_line": "Creature — Dragon"
+      }
+    ],
+    "has_more": false,
+    "object": "list",
+    "total_cards": 1
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "request": "/catalog/supertypes",
+  "status": 200,
+  "body": {
+    "data": [
+      "Basic",
+      "Elite",
+      "Legendary",
+      "Ongoing",
+      "Snow",
+      "Token",
+      "World"
+    ],
+    "object": "catalog",
+    "total_values": 7,
+    "uri": "https://api.scryfall.com/catalog/supertypes"
+  }
+}

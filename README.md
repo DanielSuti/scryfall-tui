@@ -34,5 +34,12 @@ Search history is kept in `~/.local/state/scry/history.jsonl`.
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
 cargo test
-cargo test -- --ignored   # tests that call the live Scryfall API
 ```
+
+No test calls the live Scryfall API. Tests that need real Scryfall answers replay recordings from `tests/recordings/scryfall/`. To refresh the recordings, for example after Scryfall changes its data, run the one test that calls the API. It sends about 33 requests, one per second:
+
+```sh
+cargo test --test scryfall_recorded -- --ignored record_scryfall_answers
+```
+
+If Scryfall answers 429, the recorder stops. Wait a few minutes before running it again.
