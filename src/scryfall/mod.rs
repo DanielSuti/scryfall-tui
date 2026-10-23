@@ -3,5 +3,6 @@
 
 pub mod client;
 pub mod error;
+pub mod gateway;
 pub mod parse;
 pub mod wire;

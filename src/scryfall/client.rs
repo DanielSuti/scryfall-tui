@@ -11,16 +11,12 @@ use crate::net::throttle::Throttle;
 use crate::scryfall::error::ScryfallError;
 use crate::scryfall::wire::{WireCardList, WireError, WireRulingList};
 
-/// The API's base URL.
-pub const BASE_URL: &str = "https://api.scryfall.com";
-/// The User-Agent Scryfall requires: the application name and version.
-pub const USER_AGENT: &str = concat!("scry/", env!("CARGO_PKG_VERSION"));
+pub use crate::scryfall::gateway::{BASE_URL, REQUEST_TIMEOUT, USER_AGENT};
+
 /// The Accept header sent with every API request.
 pub const ACCEPT_JSON: &str = "application/json";
 /// The Accept header sent with every image request.
 pub const ACCEPT_IMAGE: &str = "image/*";
-/// How long one request may take before it fails.
-pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
 /// Paths limited to 2 requests per second; all other methods allow 10 per second.
 const SEARCH_BUCKET_PATHS: &[&str] = &[
