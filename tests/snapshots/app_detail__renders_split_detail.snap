@@ -25,4 +25,4 @@ expression: h.render()
 "│                          │┃                                ┃│ commander  not legal                           │"
 "│                          │┃                                ┃│ legacy     not legal                           │"
 "╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯"
-" NORMAL  │ [3] Results │ 3 of 3 loaded │ by name                                     d detail · q back · s sort "
+" NORMAL  │ [3] Results │ 3 of 3 loaded │ by name, A → Z                                       d detail · q back "

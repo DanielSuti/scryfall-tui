@@ -18,5 +18,6 @@ These rules are specific to this repository. They take precedence over the gener
 - The layout and key table are owned by [docs/ui-layout.md](docs/ui-layout.md).
 
 ## Scryfall
+- Tests never call the live API. Behaviour tests use the stateful fake in `tests/support/fake_scryfall.rs`. Tests that need real answers use `DummyScryfall` in `tests/support/dummy_scryfall.rs`, which replays `tests/recordings/scryfall/`. Only the ignored recorder test calls the API, and only to refresh the recordings.
 - Every request sends the `scry/<version>` User-Agent and an Accept header, and goes through the rate-limit throttle.
 - Search queries are sent to Scryfall unchanged. Scryfall's error details and warnings are shown verbatim.

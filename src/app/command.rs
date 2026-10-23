@@ -1,6 +1,8 @@
 //! Named commands that keys can be bound to.
 
+use std::borrow::Cow;
 use std::fmt;
+use std::sync::Arc;
 
 use thiserror::Error;
 
@@ -23,28 +25,50 @@ impl Scope {
     pub const GLOBAL: Scope = Scope("global");
 }
 
+/// A command handler. It may capture values, such as the sort order a command applies.
+pub type Handler<C> = Arc<dyn Fn(&mut C) + Send + Sync>;
+
 /// A command that runs against a context `C`, such as the application state.
 pub struct Command<C> {
     /// Unique identifier.
     pub id: CommandId,
     /// One-line description shown in pickers and which-key.
-    pub description: &'static str,
+    pub description: Cow<'static, str>,
     /// The scope the command belongs to.
     pub scope: Scope,
     /// Short label for the status-line hints, or `None` to leave the command out of them.
     pub hint: Option<&'static str>,
     /// The handler.
-    pub run: fn(&mut C),
+    pub run: Handler<C>,
+}
+
+impl<C> Command<C> {
+    /// Creates a command running `run`.
+    pub fn new(
+        id: CommandId,
+        description: impl Into<Cow<'static, str>>,
+        scope: Scope,
+        hint: Option<&'static str>,
+        run: impl Fn(&mut C) + Send + Sync + 'static,
+    ) -> Self {
+        Self {
+            id,
+            description: description.into(),
+            scope,
+            hint,
+            run: Arc::new(run),
+        }
+    }
 }
 
 impl<C> Clone for Command<C> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
-            description: self.description,
+            description: self.description.clone(),
             scope: self.scope,
             hint: self.hint,
-            run: self.run,
+            run: Arc::clone(&self.run),
         }
     }
 }
@@ -125,13 +149,7 @@ mod tests {
     }
 
     fn command(id: &'static str) -> Command<u32> {
-        Command {
-            id: CommandId(id),
-            description: "Increment",
-            scope: Scope::GLOBAL,
-            hint: None,
-            run: increment,
-        }
+        Command::new(CommandId(id), "Increment", Scope::GLOBAL, None, increment)
     }
 
     #[test]
@@ -154,5 +172,31 @@ mod tests {
         (registry.get(CommandId("b")).unwrap().run)(&mut counter);
         assert_eq!(counter, 1);
         assert!(registry.get(CommandId("c")).is_none());
+    }
+
+    #[test]
+    fn handlers_can_capture_values() {
+        let mut registry = CommandRegistry::new();
+        for step in [2, 5] {
+            let id = if step == 2 { "by_two" } else { "by_five" };
+            let description = format!("Add {step}");
+            registry
+                .register(Command::new(
+                    CommandId(id),
+                    description,
+                    Scope::GLOBAL,
+                    None,
+                    move |n: &mut u32| *n += step,
+                ))
+                .unwrap();
+        }
+        let mut counter = 0;
+        (registry.get(CommandId("by_five")).unwrap().run)(&mut counter);
+        (registry.get(CommandId("by_two")).unwrap().run)(&mut counter);
+        assert_eq!(counter, 7);
+        assert_eq!(
+            registry.get(CommandId("by_two")).unwrap().description,
+            "Add 2"
+        );
     }
 }

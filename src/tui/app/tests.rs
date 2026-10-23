@@ -5,6 +5,14 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
+/// An app with the default configuration, except no base terms: these tests are not about
+/// them.
+fn test_app() -> App {
+    let mut config = Config::default();
+    config.search.base = String::new();
+    App::with_config(config)
+}
+
 fn key(code: KeyCode) -> AppEvent {
     AppEvent::Key(KeyEvent::new(code, KeyModifiers::NONE))
 }
@@ -17,7 +25,7 @@ fn type_text(app: &mut App, text: &str) {
 
 #[test]
 fn capital_q_quits_in_normal_mode() {
-    let mut app = App::new();
+    let mut app = test_app();
     type_text(&mut app, "2");
     app.handle_event(key(KeyCode::Char('q')));
     assert!(!app.should_quit());
@@ -27,7 +35,7 @@ fn capital_q_quits_in_normal_mode() {
 
 #[test]
 fn insert_mode_keys_reach_the_input() {
-    let mut app = App::new();
+    let mut app = test_app();
     app.enter_insert_mode();
     type_text(&mut app, "Q x");
     assert!(!app.should_quit());
@@ -53,13 +61,13 @@ fn scoped_command(
     hint: Option<&'static str>,
 ) {
     app.commands
-        .register(Command {
-            id: CommandId(id),
+        .register(Command::new(
+            CommandId(id),
             description,
             scope,
             hint,
-            run: |_| {},
-        })
+            |_| {},
+        ))
         .unwrap();
     app.keymap
         .bind(Mode::Normal, scope, notation, CommandId(id))
@@ -68,7 +76,7 @@ fn scoped_command(
 
 #[test]
 fn hints_come_from_the_registry_of_the_scope() {
-    let mut app = App::new();
+    let mut app = test_app();
     let results = Scope("test_results");
     let history = Scope("test_history");
     scoped_command(&mut app, results, "r.detail", "d", "Detail", Some("detail"));
@@ -81,10 +89,53 @@ fn hints_come_from_the_registry_of_the_scope() {
 }
 
 fn app_with_leader_commands() -> App {
-    let mut app = App::new();
+    let mut app = test_app();
     test_command(&mut app, "test.one", "<leader>ab", "First");
     test_command(&mut app, "test.two", "<leader>c", "Second");
     app
+}
+
+fn app_with_instant_group() -> App {
+    let mut app = test_app();
+    test_command(&mut app, "test.thing", "\\a", "Thing: up");
+    test_command(&mut app, "test.thing_reverse", "\\A", "Thing: down");
+    test_command(&mut app, "test.other", "\\o", "Other");
+    app.keymap
+        .describe_prefix(Mode::Normal, Scope::GLOBAL, "\\", "Test group", true)
+        .unwrap();
+    app
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_instant_group_shows_at_once_with_twins_paired() {
+    let mut app = app_with_instant_group();
+    app.handle_event(key(KeyCode::Char('\\')));
+    assert_eq!(app.which_key_title(), Some("Test group"));
+    let listed: Vec<(String, String)> = app
+        .which_key_entries()
+        .into_iter()
+        .map(|e| (e.keys, e.description))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("a/A".to_owned(), "Thing: up / down".to_owned()),
+            ("o".to_owned(), "Other".to_owned())
+        ]
+    );
+    app.handle_event(key(KeyCode::Char(' ')));
+    assert!(
+        app.which_key_entries().is_empty(),
+        "<leader> still waits for the delay"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn renders_titled_which_key_popup() {
+    let mut app = app_with_instant_group();
+    app.handle_event(AppEvent::Resize(40, 10));
+    app.handle_event(key(KeyCode::Char('\\')));
+    insta::assert_snapshot!(render(&app));
 }
 
 #[tokio::test(start_paused = true)]
@@ -108,7 +159,7 @@ async fn which_key_appears_after_the_delay_and_lists_the_registry() {
         .map(|b| {
             (
                 b.sequence.tail(1).unwrap().to_string(),
-                app.commands.get(b.command).unwrap().description.to_owned(),
+                app.commands.get(b.command).unwrap().description.to_string(),
             )
         })
         .collect();
@@ -144,7 +195,7 @@ async fn renders_which_key_popup() {
 }
 
 fn sized(width: u16, height: u16) -> App {
-    let mut app = App::new();
+    let mut app = test_app();
     app.handle_event(AppEvent::Resize(width, height));
     app
 }
@@ -236,13 +287,10 @@ fn hints_follow_the_main_view() {
     let mut app = sized(112, 12);
     assert_eq!(
         app.hints_for(app.focused_scope()),
-        ["d detail", "⏎ split", "q quit", "s sort"]
+        ["d detail", "⏎ split", "q quit"]
     );
     press(&mut app, "<CR>");
-    assert_eq!(
-        app.hints_for(app.focused_scope()),
-        ["d detail", "q back", "s sort"]
-    );
+    assert_eq!(app.hints_for(app.focused_scope()), ["d detail", "q back"]);
     press(&mut app, "d");
     assert_eq!(
         app.hints_for(app.focused_scope()),
@@ -376,10 +424,10 @@ fn keymaps_picker_lists_every_command_and_runs_the_choice() {
     let mut app = sized(112, 20);
     press(&mut app, "<leader>sk");
     let picker = app.picker().expect("picker is open");
-    let labels = picker.labels();
+    let labels = picker.matching_labels();
     assert_eq!(labels.len(), app.commands().iter().count());
     for (label, command) in labels.iter().zip(app.commands().iter()) {
-        assert!(label.ends_with(command.description), "{label}");
+        assert!(label.ends_with(command.description.as_ref()), "{label}");
         for binding in app.keymap().bindings_for(command.id) {
             assert!(label.contains(&binding.sequence.to_string()), "{label}");
         }

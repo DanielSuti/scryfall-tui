@@ -2,8 +2,8 @@
 //! keymaps picker.
 
 use crate::app::command::{CommandId, CommandRegistry, Scope};
+use crate::tui::app::App;
 use crate::tui::app::registrar::{Registrar, RegistrationError, command};
-use crate::tui::app::{App, OpenPicker};
 use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::mode::Mode;
 use crate::tui::layout::{
@@ -62,10 +62,7 @@ impl App {
     }
 
     fn open_keymaps_picker(&mut self) {
-        self.picker = Some(OpenPicker::Keymaps(keymaps_picker(
-            &self.commands,
-            &self.keymap,
-        )));
+        self.picker = Some(keymaps_picker(&self.commands, &self.keymap));
         self.enter_insert_mode();
     }
 

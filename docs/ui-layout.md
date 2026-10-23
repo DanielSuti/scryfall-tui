@@ -114,6 +114,7 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 | | `<leader>sk` | Keymaps picker. |
 | | `2` / `3` / `0` | Focus history (an overlay when hidden), the main panel, or the detail (split only). |
 | | `/`, `n`, `N` | Search the focused panel's text. |
+| | `,` then a letter | Sort the results. See below. |
 | | `Q` | Quit. |
 | | `+`, `_` | Reserved and unbound. |
 | Search bar, insert mode | `<CR>` | Run the search. It enters history, and focus moves to the results. |
@@ -124,7 +125,6 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 | | `dd` | Delete the entry. |
 | Results | `j`/`k`, `gg`/`G`, `<C-d>`/`<C-u>`, or `↓`/`↑`, `Home`/`End`, `PageDown`/`PageUp` | Move. Reaching the last loaded row loads the next batch. |
 | | `d`, `<CR>`, `q` | As in the transition table. |
-| | `s` | Open the sort picker, also in the split. |
 | Full detail | `j`/`k` or `↓`/`↑` | Scroll. |
 | | `J`/`K` | Previous or next card. |
 | | `<CR>`, `q` | As in the transition table. |
@@ -136,11 +136,33 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 
 Text that does not fit its column ends in `...`. Anything after it on the same line, such as a history count, stays visible. One helper does this everywhere text is cut.
 
-## Sort picker
+## Sorting
 
-`s` on the results opens a small floating picker with two orders: name (A → Z) and release date (newest first). The cursor starts on the order in use. Choosing an order runs the displayed query again with Scryfall's `order` parameter, so all matches are sorted, not only the loaded ones. The order stays for the rest of the session, shows in the status line as `by name` or `by release date`, and is not stored in the history.
+`,` in normal mode, in any panel, opens the "Sort by" window at once, as in yazi. A second key picks the order, and its uppercase form sorts in reverse. `<Esc>` closes the window without sorting.
+
+| Key | Order | Default | Uppercase |
+|---|---|---|---|
+| `n` | Name | A → Z | Z → A |
+| `s` | Set | A → Z | Z → A |
+| `d` | Release date | newest first | oldest first |
+| `r` | Rarity | mythic first | common first |
+| `c` | Color | WUBRG first | colorless first |
+| `m` | Mana value | lowest first | highest first |
+| `p` | Power | lowest first | highest first |
+| `t` | Toughness | lowest first | highest first |
+| `u` | USD price | highest first | lowest first |
+| `e` | EUR price | highest first | lowest first |
+| `x` | TIX price | highest first | lowest first |
+| `h` | EDHREC rank | most played first | least played first |
+| `y` | Penny rank | most played first | least played first |
+| `a` | Artist | A → Z | Z → A |
+| `v` | Set review | review order | reverse review order |
+
+Choosing an order runs the displayed query again with Scryfall's `order` and `dir` parameters, so all matches are sorted, not only the loaded ones. Reversed price orders list cards without a price first, as Scryfall returns them. The order stays for the rest of the session, shows in the status line as, for example, `by release date, newest first`, and is not stored in the history.
 
 ## Panel contents
+
+- **Search bar** shows the query as typed. When `search.base` is set, its terms appear dimmed on the right of the border as `+ game:paper -is:funny`, because every search adds them.
 
 - **Results rows** show name, mana cost and card types. Supertypes and subtypes are left out. Double-faced cards show both faces joined with ` // `, and a face with no mana cost shows `—`.
 - **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`.

@@ -38,4 +38,9 @@ All notable changes to this project are documented in this file, newest release 
 - Failed searches keep their loaded cards and show the reason in the status line until the query is run again. Network failures and rate-limit pauses are shown there as well.
 - Ignored test running one real search against the Scryfall API.
 - Arrow, Home/End and PageUp/PageDown keys move like `j`/`k`, `gg`/`G` and `<C-d>`/`<C-u>`.
-- `s` on the results opens a sort picker for name or release date. Scryfall sorts all matches, and the order stays for the session.
+- `,` on the results opens a "Sort by" window, and a second key sorts by any of Scryfall's 15 orders, uppercase for reverse. Scryfall sorts all matches, and the order stays for the session.
+- Command handlers can capture values and descriptions can be built at run time, so one loop can register a family of related commands.
+- Which-key popups can carry a title and appear at once for chosen prefixes, and show a lowercase key and its uppercase twin on one line.
+- Tests that need real Scryfall data replay answers recorded once from the API, so no test calls Scryfall. An ignored recorder test refreshes the recordings.
+- The `,` sort keys work in normal mode in every panel, not only on the results.
+- `search.base` in the config adds Scryfall terms to every search, `game:paper -is:funny` by default. The search bar shows them, and the history keeps the query as typed. The README covers installing and using `scry` in full.

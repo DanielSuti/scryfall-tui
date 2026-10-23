@@ -50,6 +50,22 @@ pub enum KeymapError {
 pub struct Keymap {
     leader: Key,
     bindings: Vec<Binding>,
+    groups: Vec<PrefixGroup>,
+}
+
+/// A titled key prefix, such as `,` for sorting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PrefixGroup {
+    /// The mode the prefix applies in.
+    pub mode: Mode,
+    /// The scope the prefix applies in.
+    pub scope: Scope,
+    /// The prefix keys with the leader resolved.
+    pub keys: Vec<Key>,
+    /// The title of the which-key popup while the prefix is pending.
+    pub title: &'static str,
+    /// True when the popup appears at once instead of after the usual delay.
+    pub instant: bool,
 }
 
 impl Keymap {
@@ -58,7 +74,45 @@ impl Keymap {
         Self {
             leader,
             bindings: Vec::new(),
+            groups: Vec::new(),
         }
+    }
+
+    /// Gives the prefix `notation` in `mode` and `scope` a popup `title`, and makes the popup
+    /// appear at once when `instant` is true.
+    ///
+    /// # Errors
+    /// Returns [`KeymapError::Parse`] for invalid notation.
+    pub fn describe_prefix(
+        &mut self,
+        mode: Mode,
+        scope: Scope,
+        notation: &str,
+        title: &'static str,
+        instant: bool,
+    ) -> Result<(), KeymapError> {
+        let sequence = KeySequence::parse(notation).map_err(|source| KeymapError::Parse {
+            notation: notation.to_owned(),
+            source,
+        })?;
+        self.groups.push(PrefixGroup {
+            mode,
+            scope,
+            keys: sequence.resolve(self.leader),
+            title,
+            instant,
+        });
+        Ok(())
+    }
+
+    /// Returns the group described for exactly the keys `pending` in `mode`, taking the first
+    /// of `scopes` that has one, or `None`.
+    pub fn group_for(&self, mode: Mode, scopes: &[Scope], pending: &[Key]) -> Option<&PrefixGroup> {
+        scopes.iter().find_map(|scope| {
+            self.groups
+                .iter()
+                .find(|g| g.mode == mode && g.scope == *scope && g.keys == pending)
+        })
     }
 
     /// Returns the leader key.

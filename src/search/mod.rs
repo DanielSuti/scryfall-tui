@@ -37,52 +37,178 @@ impl SearchError {
     }
 }
 
-/// The order in which a search returns its cards.
+/// What a search sorts its cards by.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-pub enum SortOrder {
-    /// By name, A to Z.
+pub enum SortField {
+    /// Card name.
     #[default]
     Name,
-    /// By release date, newest first.
+    /// Set code and collector number.
+    Set,
+    /// Release date.
     Released,
+    /// Rarity.
+    Rarity,
+    /// Color and color identity.
+    Color,
+    /// Mana value.
+    ManaValue,
+    /// Power.
+    Power,
+    /// Toughness.
+    Toughness,
+    /// Price in US dollars.
+    Usd,
+    /// Price in euros.
+    Eur,
+    /// Price in MTGO event tickets.
+    Tix,
+    /// EDHREC popularity rank.
+    Edhrec,
+    /// Penny Dreadful popularity rank.
+    Penny,
+    /// Artist name.
+    Artist,
+    /// The order set reviews use: color and mana value, with special printings last.
+    Review,
 }
 
-impl SortOrder {
-    /// Every order, in the order a picker lists them.
-    pub const ALL: [SortOrder; 2] = [SortOrder::Name, SortOrder::Released];
+impl SortField {
+    /// Every field, in the order the sort window lists them.
+    pub const ALL: [SortField; 15] = [
+        SortField::Name,
+        SortField::Set,
+        SortField::Released,
+        SortField::Rarity,
+        SortField::Color,
+        SortField::ManaValue,
+        SortField::Power,
+        SortField::Toughness,
+        SortField::Usd,
+        SortField::Eur,
+        SortField::Tix,
+        SortField::Edhrec,
+        SortField::Penny,
+        SortField::Artist,
+        SortField::Review,
+    ];
 
-    /// Returns the name shown in the sort picker.
-    pub fn label(self) -> &'static str {
+    /// Returns the field's name, its name inside a sentence, and the direction of its default
+    /// and reversed orders.
+    fn texts(self) -> (&'static str, &'static str, &'static str, &'static str) {
         match self {
-            SortOrder::Name => "Name (A → Z)",
-            SortOrder::Released => "Release date (newest first)",
+            SortField::Name => ("Name", "name", "A → Z", "Z → A"),
+            SortField::Set => ("Set", "set", "A → Z", "Z → A"),
+            SortField::Released => (
+                "Release date",
+                "release date",
+                "newest first",
+                "oldest first",
+            ),
+            SortField::Rarity => ("Rarity", "rarity", "mythic first", "common first"),
+            SortField::Color => ("Color", "color", "WUBRG first", "colorless first"),
+            SortField::ManaValue => ("Mana value", "mana value", "lowest first", "highest first"),
+            SortField::Power => ("Power", "power", "lowest first", "highest first"),
+            SortField::Toughness => ("Toughness", "toughness", "lowest first", "highest first"),
+            SortField::Usd => ("USD price", "USD price", "highest first", "lowest first"),
+            SortField::Eur => ("EUR price", "EUR price", "highest first", "lowest first"),
+            SortField::Tix => ("TIX price", "TIX price", "highest first", "lowest first"),
+            SortField::Edhrec => (
+                "EDHREC rank",
+                "EDHREC rank",
+                "most played first",
+                "least played first",
+            ),
+            SortField::Penny => (
+                "Penny rank",
+                "Penny rank",
+                "most played first",
+                "least played first",
+            ),
+            SortField::Artist => ("Artist", "artist", "A → Z", "Z → A"),
+            SortField::Review => (
+                "Set review",
+                "set review",
+                "review order",
+                "reverse review order",
+            ),
         }
     }
 
-    /// Returns the short description shown in the status line, such as `by name`.
-    pub fn summary(self) -> &'static str {
-        match self {
-            SortOrder::Name => "by name",
-            SortOrder::Released => "by release date",
-        }
+    /// Returns the field's name, such as `Release date`.
+    pub fn label(self) -> &'static str {
+        self.texts().0
+    }
+}
+
+/// The order in which a search returns its cards: a field, in its default direction or
+/// reversed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct SortOrder {
+    /// What the cards are sorted by.
+    pub field: SortField,
+    /// True for the opposite of the field's default direction.
+    pub reversed: bool,
+}
+
+impl SortOrder {
+    /// Creates an order by `field`, reversed when `reversed` is true.
+    pub fn new(field: SortField, reversed: bool) -> Self {
+        Self { field, reversed }
+    }
+
+    /// Returns the direction, such as `newest first`.
+    pub fn direction(self) -> &'static str {
+        let (_, _, default, reversed) = self.field.texts();
+        if self.reversed { reversed } else { default }
+    }
+
+    /// Returns a description such as `Release date: newest first`.
+    pub fn description(self) -> String {
+        format!("{}: {}", self.field.label(), self.direction())
+    }
+
+    /// Returns the status-line summary, such as `by release date, newest first`.
+    pub fn summary(self) -> String {
+        format!("by {}, {}", self.field.texts().1, self.direction())
     }
 }
 
 /// A query and the order its results come in.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SearchRequest {
-    /// The query, sent to the source unchanged.
+    /// The query as the user typed it.
     pub query: String,
     /// The order of the results.
     pub order: SortOrder,
+    /// Terms added to every query, such as `game:paper`, or empty for none.
+    pub base: String,
 }
 
 impl SearchRequest {
-    /// Creates a request for `query` in `order`.
+    /// Creates a request for `query` in `order`, without base terms.
     pub fn new(query: impl Into<String>, order: SortOrder) -> Self {
         Self {
             query: query.into(),
             order,
+            base: String::new(),
+        }
+    }
+
+    /// Adds `base` to the request's query.
+    #[must_use]
+    pub fn with_base(mut self, base: impl Into<String>) -> Self {
+        self.base = base.into();
+        self
+    }
+
+    /// Returns the query to send: the typed query in parentheses followed by the base terms,
+    /// so an `or` in the typed query keeps its meaning. Without base terms, or with only
+    /// whitespace, the typed query is returned unchanged.
+    pub fn effective_query(&self) -> String {
+        match self.base.trim() {
+            "" => self.query.clone(),
+            base => format!("({}) {base}", self.query),
         }
     }
 }
@@ -166,5 +292,25 @@ pub async fn load_batch(
     match next {
         BatchStart::Next(token) => Some(token),
         BatchStart::Query(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_terms_follow_the_parenthesised_query() {
+        let request = SearchRequest::new("t:goblin or t:elf", SortOrder::default());
+        assert_eq!(request.effective_query(), "t:goblin or t:elf");
+        let based = request.clone().with_base("game:paper -is:funny");
+        assert_eq!(
+            based.effective_query(),
+            "(t:goblin or t:elf) game:paper -is:funny"
+        );
+        assert_eq!(
+            request.with_base("  ").effective_query(),
+            "t:goblin or t:elf"
+        );
     }
 }

@@ -2,11 +2,16 @@
 //!
 //! The fake holds a list of cards and answers `GET /cards/search` from it. It supports a
 //! documented subset of the query language: every whitespace-separated term must appear in
-//! the card name, ignoring case. A term containing `:` is ignored with a warning, as Scryfall
-//! warns about expressions it cannot use. Like Scryfall, results are sorted by name unless
-//! `order=released` asks for newest first; another `order` value is a 400 error. Pages, totals,
-//! `next_page`, no-match errors and 429 responses are all derived from the fake's configured
-//! state.
+//! the card name, ignoring case. Parentheses around terms are dropped. A term containing `:` is ignored with a warning, as Scryfall
+//! warns about expressions it cannot use.
+//!
+//! Sorting models two of Scryfall's orders with their measured `dir=auto` behaviour: `name`
+//! (auto and `asc` give A → Z, `desc` Z → A) and `released` (auto and `desc` give newest
+//! first, `asc` oldest first). Without `order` the fake sorts by name, as Scryfall does. Any
+//! other `order` or `dir` value is a 400 error saying the fake does not model it.
+//!
+//! Pages, totals, `next_page`, no-match errors and 429 responses are all derived from the
+//! fake's configured state.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -181,7 +186,12 @@ impl Respond for FakeScryfall {
 
         let mut warnings = Vec::new();
         let mut terms = Vec::new();
+        // Parentheses group terms; the fake has no `or`, so it drops them.
         for term in query.split_whitespace() {
+            let term = term.trim_matches(|c| c == '(' || c == ')');
+            if term.is_empty() {
+                continue;
+            }
             if term.contains(':') {
                 warnings.push(format!("Invalid expression “{term}” was ignored."));
             } else {
@@ -189,6 +199,7 @@ impl Respond for FakeScryfall {
             }
         }
         let order = param("order").unwrap_or_else(|| "name".to_owned());
+        let dir = param("dir").unwrap_or_else(|| "auto".to_owned());
         let text = |card: &Value, key: &str| card[key].as_str().unwrap_or_default().to_owned();
         let mut matching: Vec<&Value> = state
             .cards
@@ -198,16 +209,24 @@ impl Respond for FakeScryfall {
                 terms.iter().all(|t| name.contains(t))
             })
             .collect();
-        match order.as_str() {
-            "name" => matching.sort_by_key(|card| text(card, "name").to_lowercase()),
-            "released" => matching.sort_by(|a, b| {
-                text(b, "released_at")
-                    .cmp(&text(a, "released_at"))
-                    .then_with(|| text(a, "name").cmp(&text(b, "name")))
-            }),
-            other => {
-                return error(400, "bad_request", &format!("Unknown order `{other}`."));
+        let ascending = match (order.as_str(), dir.as_str()) {
+            ("name", "auto" | "asc") | ("released", "asc") => true,
+            ("name", "desc") | ("released", "auto" | "desc") => false,
+            (order, dir) => {
+                return error(
+                    400,
+                    "bad_request",
+                    &format!("The fake does not model order `{order}` with dir `{dir}`."),
+                );
             }
+        };
+        let key = |card: &Value| match order.as_str() {
+            "released" => (text(card, "released_at"), text(card, "name")),
+            _ => (text(card, "name").to_lowercase(), String::new()),
+        };
+        matching.sort_by_key(|card| key(card));
+        if !ascending {
+            matching.reverse();
         }
         if matching.is_empty() {
             return error(404, "not_found", NOT_FOUND_DETAILS);
@@ -226,6 +245,7 @@ impl Respond for FakeScryfall {
             url.query_pairs_mut()
                 .append_pair("q", &query)
                 .append_pair("order", &order)
+                .append_pair("dir", &dir)
                 .append_pair("page", &(page + 1).to_string());
             url.to_string()
         });

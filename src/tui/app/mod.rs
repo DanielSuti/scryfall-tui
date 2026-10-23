@@ -43,7 +43,7 @@ use crate::tui::widgets::item_list::{Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::Pane;
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
-use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup};
+use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup, pair_case_twins};
 
 pub use commands::*;
 pub use search::{NEW_SEARCH, RUN_SEARCH};
@@ -127,49 +127,7 @@ pub struct App {
     prompt: Option<QueryInput>,
     last_pattern: Option<String>,
     message: Option<StatusMessage>,
-    picker: Option<OpenPicker>,
-}
-
-/// The picker on screen and what choosing an item does.
-#[derive(Debug)]
-pub enum OpenPicker {
-    /// Runs the chosen command.
-    Keymaps(Picker<CommandId>),
-    /// Sorts the results by the chosen order.
-    Sort(Picker<SortOrder>),
-}
-
-impl OpenPicker {
-    /// Returns the labels of the matching items, best match first.
-    pub fn labels(&self) -> Vec<&str> {
-        match self {
-            OpenPicker::Keymaps(picker) => picker.matching_labels(),
-            OpenPicker::Sort(picker) => picker.matching_labels(),
-        }
-    }
-
-    /// Returns the label under the cursor, or `None` when nothing matches.
-    pub fn selected_label(&self) -> Option<&str> {
-        match self {
-            OpenPicker::Keymaps(picker) => picker.selected_label(),
-            OpenPicker::Sort(picker) => picker.selected_label(),
-        }
-    }
-
-    fn render(&self, frame: &mut Frame, area: Rect) {
-        match self {
-            OpenPicker::Keymaps(picker) => picker.render(frame, area),
-            OpenPicker::Sort(picker) => picker.render(frame, area),
-        }
-    }
-}
-
-/// What a key press in a picker asks for.
-enum PickerAction {
-    Stay,
-    Close,
-    RunCommand(CommandId),
-    Sort(SortOrder),
+    picker: Option<Picker<CommandId>>,
 }
 
 impl Default for App {
@@ -410,12 +368,14 @@ impl App {
         self.which_key.deadline()
     }
 
-    /// Returns the entries of the which-key popup, or an empty list when it is hidden.
+    /// Returns the entries of the which-key popup, with case twins on one line, or an empty
+    /// list when it is hidden.
     pub fn which_key_entries(&self) -> Vec<WhichKeyEntry> {
         if !self.which_key.visible() {
             return Vec::new();
         }
-        self.which_key
+        let entries = self
+            .which_key
             .continuations()
             .iter()
             .map(|c| WhichKeyEntry {
@@ -423,15 +383,25 @@ impl App {
                 description: self
                     .commands
                     .get(c.command)
-                    .map_or_else(|| c.command.to_string(), |cmd| cmd.description.to_owned()),
+                    .map_or_else(|| c.command.to_string(), |cmd| cmd.description.to_string()),
             })
-            .collect()
+            .collect();
+        pair_case_twins(entries)
+    }
+
+    /// Returns the title of the which-key popup, if the pending prefix has one.
+    pub fn which_key_title(&self) -> Option<&'static str> {
+        self.which_key.title()
     }
 
     /// Runs the command with `id`. Unknown ids are ignored, because every bound id is
     /// registered at start-up.
     pub fn run_command(&mut self, id: CommandId) {
-        if let Some(run) = self.commands.get(id).map(|command| command.run) {
+        if let Some(run) = self
+            .commands
+            .get(id)
+            .map(|command| Arc::clone(&command.run))
+        {
             run(self);
         }
     }
@@ -491,28 +461,12 @@ impl App {
         };
         self.message = None;
         if let Some(picker) = self.picker.as_mut() {
-            let action = match picker {
-                OpenPicker::Keymaps(picker) => match picker.handle_key(event) {
-                    PickerOutcome::Open => PickerAction::Stay,
-                    PickerOutcome::Cancelled => PickerAction::Close,
-                    PickerOutcome::Selected(id) => PickerAction::RunCommand(id),
-                },
-                OpenPicker::Sort(picker) => match picker.handle_key(event) {
-                    PickerOutcome::Open => PickerAction::Stay,
-                    PickerOutcome::Cancelled => PickerAction::Close,
-                    PickerOutcome::Selected(order) => PickerAction::Sort(order),
-                },
-            };
-            match action {
-                PickerAction::Stay => {}
-                PickerAction::Close => self.close_picker(),
-                PickerAction::RunCommand(id) => {
+            match picker.handle_key(event) {
+                PickerOutcome::Open => {}
+                PickerOutcome::Cancelled => self.close_picker(),
+                PickerOutcome::Selected(id) => {
                     self.close_picker();
                     self.run_command(id);
-                }
-                PickerAction::Sort(order) => {
-                    self.close_picker();
-                    self.apply_sort(order);
                 }
             }
             return;
@@ -524,7 +478,12 @@ impl App {
                 self.run_command(id);
             }
             Dispatch::Pending(continuations) => {
-                self.which_key.start(continuations, Instant::now());
+                let group = self
+                    .keymap
+                    .group_for(self.mode, &scopes, self.dispatcher.pending());
+                let (title, instant) = group.map_or((None, false), |g| (Some(g.title), g.instant));
+                self.which_key
+                    .start(continuations, Instant::now(), title, instant);
             }
             Dispatch::NoMatch(_) => {
                 self.which_key.clear();
@@ -586,7 +545,7 @@ impl App {
     }
 
     /// Returns the open picker, if any.
-    pub fn picker(&self) -> Option<&OpenPicker> {
+    pub fn picker(&self) -> Option<&Picker<CommandId>> {
         self.picker.as_ref()
     }
 
@@ -605,6 +564,7 @@ impl App {
             frame,
             areas.search,
             self.title(Panel::SearchBar),
+            &self.config.search.base,
             focused(Panel::SearchBar),
             focused(Panel::SearchBar) && self.mode == Mode::Insert && self.prompt.is_none(),
         );
@@ -666,7 +626,9 @@ impl App {
                 height: areas.status.y.saturating_sub(areas.search.y),
                 ..frame.area()
             };
-            WhichKeyPopup::new(&entries).render(body, frame.buffer_mut());
+            WhichKeyPopup::new(&entries)
+                .title(self.which_key.title())
+                .render(body, frame.buffer_mut());
         }
     }
 

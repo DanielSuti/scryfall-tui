@@ -40,6 +40,8 @@ impl Harness {
     pub async fn start(cards: Vec<Value>, page_size: usize, max_pages: u32) -> Self {
         let mut config = Config::default();
         config.search.max_pages = NonZeroU32::new(max_pages).unwrap();
+        // Tests that are not about base terms search without them.
+        config.search.base = String::new();
         Self::start_with_config(cards, page_size, config).await
     }
 
