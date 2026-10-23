@@ -39,7 +39,7 @@ Press `<Space>sk` at any time to search the list of every key. Press `<Space>` a
 │ t:dragon c:r mv=5                                                        │
 ╰──────────────────────────────────────────────────────────────────────────╯
 ╭ [2] History ─────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│▌t:dragon c:r.. 67│┃▌Glorybringer                 {3}{R}{R}   Creature   ┃
+│t:dragon c:r... 67│┃▌Glorybringer                 {3}{R}{R}   Creature   ┃
 │ o:draw       3.8k│┃ Stormbreath Dragon           {3}{R}{R}   Creature   ┃
 ╰──────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
  NORMAL │ [3] Results │ 67 of 67 loaded │ by name, A → Z   d detail · ⏎ split
@@ -50,7 +50,7 @@ Press `<Space>sk` at any time to search the list of every key. Press `<Space>` a
 - **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`.
 - **The status line** shows the mode, the focused panel, how many cards are loaded, the sort order, messages, and the most useful keys for the focused panel.
 
-A heavy border marks the focused panel. The number in each title is the key that focuses it. The full layout, with mockups of every state, is in [docs/ui-layout.md](docs/ui-layout.md).
+The focused panel has a heavy green border, and its selected line is bold on a blue background (marked `▌` in the drawing above). Without focus, the results mark the selected card with `▌`, and the history shows no selection. The number in each title is the key that focuses it. The full layout, with mockups of every state, is in [docs/ui-layout.md](docs/ui-layout.md).
 
 ## Keys
 

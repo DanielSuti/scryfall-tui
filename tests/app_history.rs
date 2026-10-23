@@ -41,7 +41,7 @@ async fn searches_enter_the_history_with_their_count() {
     let screen = h.screen();
     let row = screen
         .lines()
-        .find(|l| l.contains("│ dragon"))
+        .find(|l| l.starts_with("│dragon"))
         .expect("history row");
     let row = row.split('│').nth(1).unwrap();
     assert!(row.trim_end().ends_with('2'), "{row:?}");
@@ -140,4 +140,40 @@ async fn renders_history() {
     h.search("o:\"a very long oracle text query\" sol").await;
     h.press("2");
     insta::assert_snapshot!(h.render());
+}
+
+#[tokio::test]
+async fn the_history_shows_its_selection_only_with_focus() {
+    use ratatui::style::Color;
+    let mut h = Harness::start(cards(), 175, 6).await;
+    h.search("dragon").await;
+    h.search("sol").await;
+    let backend = h.render();
+    let buf = backend.buffer();
+    let history = h.app.areas().history.unwrap();
+    let (x, y) = (history.x + 1, history.y + 1);
+    let row = |buf: &ratatui::buffer::Buffer| -> String {
+        (x..history.right() - 1)
+            .map(|x| buf[(x, y)].symbol())
+            .collect()
+    };
+    assert!(
+        row(buf).starts_with("sol"),
+        "no marker column: {:?}",
+        row(buf)
+    );
+    assert!(
+        !h.screen().lines().any(|l| l.starts_with("│▌")),
+        "{}",
+        h.screen()
+    );
+    assert_eq!(buf[(x, y)].bg, Color::Reset, "no highlight without focus");
+    h.press("2");
+    let backend = h.render();
+    assert_eq!(
+        backend.buffer()[(x, y)].bg,
+        Color::Blue,
+        "highlighted with focus"
+    );
+    assert!(row(backend.buffer()).starts_with("sol"));
 }

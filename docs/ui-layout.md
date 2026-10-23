@@ -1,6 +1,6 @@
 # UI layout
 
-A heavy border marks the focused panel, and titles show the jump number. The mockups are 112 columns wide, so history is 28 columns and the main panel 84.
+The focused panel has a heavy, green and bold border, as lazygit's `activeBorderColor`, and titles show the jump number. Its selected line is bold on a blue background across the whole row, as lazygit's selected line; the text mockups below mark that line with `▌` because they can't show color. A results list without focus marks its selected card with `▌` only, so the split shows which card the detail is about. The history shows no selection while it doesn't have focus. The mockups are 112 columns wide, so history is 28 columns and the main panel 84.
 
 **V1. Main view**
 ```
@@ -8,7 +8,7 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 │ t:dragon c:r mv=5                                                                                            │
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭─ [2] History ────────────╮┏━ [3] Results ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9 of 67 ━┓
-│▌t:dragon c:r mv=5      67│┃ Adult Gold Dragon                   {3}{R}{W}   Creature                         ┃
+│t:dragon c:r mv=5       67│┃ Adult Gold Dragon                   {3}{R}{W}   Creature                         ┃
 │ o:scry id:esper t:i... 57│┃ Backdraft Hellkite                  {3}{R}{R}   Creature                         ┃
 │ o:draw t:instant      783│┃ Balefang the Unslayable             {3}{R}{R}   Creature                         ┃
 │ f:commander id:rg... 2.1k│┃ Boltwing Marauder                   {3}{B}{R}   Creature                         ┃
@@ -24,7 +24,7 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 **V2. After `<CR>`, split side by side. Results keep focus, and the detail follows the cursor.**
 ```
 ╭─ [2] History ────────────╮┏━ [3] Results ━━━━━━━━━━━━━ 9/67 ━┓╭─ [0] Detail ─────────────────────────────────╮
-│▌t:dragon c:r mv=5      67│┃ Adult Gold Dragon    {3}{R}{W}   ┃│ Glorybringer                       {3}{R}{R} │
+│t:dragon c:r mv=5       67│┃ Adult Gold Dragon    {3}{R}{W}   ┃│ Glorybringer                       {3}{R}{R} │
 │ o:scry id:esper t:i... 57│┃ Backdraft Hellkite   {3}{R}{R}   ┃│ Creature — Dragon                        4/4 │
 │ o:draw t:instant      783│┃ Balefang the Unsl... {3}{R}{R}   ┃│                                              │
 │ f:commander id:rg... 2.1k│┃ Boltwing Marauder    {3}{B}{R}   ┃│ Flying, haste                                │
@@ -47,7 +47,7 @@ A heavy border marks the focused panel, and titles show the jump number. The moc
 **V3. After `d`, full detail**
 ```
 ╭─ [2] History ────────────╮┏━ [3] Detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9 of 67 ━┓
-│▌t:dragon c:r mv=5      67│┃ Glorybringer                                                           {3}{R}{R} ┃
+│t:dragon c:r mv=5       67│┃ Glorybringer                                                           {3}{R}{R} ┃
 │ o:scry id:esper t:i... 57│┃ Creature — Dragon                                                            4/4 ┃
 │ o:draw t:instant      783│┃                                                                                  ┃
 │ f:commander id:rg... 2.1k│┃ Flying, haste                                                                    ┃
