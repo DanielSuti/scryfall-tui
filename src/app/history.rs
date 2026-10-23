@@ -1,6 +1,6 @@
 //! The search history, newest first, saved between sessions.
 
-use std::io::{self, Write};
+use std::io;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
@@ -146,17 +146,13 @@ impl History {
             path: path.to_owned(),
             source,
         };
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(write_error)?;
-        }
-        let temporary = path.with_extension("jsonl.tmp");
-        let mut file = std::fs::File::create(&temporary).map_err(write_error)?;
+        let mut lines = String::new();
         for entry in &self.entries {
             let line = serde_json::to_string(entry).map_err(|err| write_error(err.into()))?;
-            writeln!(file, "{line}").map_err(write_error)?;
+            lines.push_str(&line);
+            lines.push('\n');
         }
-        file.sync_all().map_err(write_error)?;
-        std::fs::rename(&temporary, path).map_err(write_error)
+        crate::app::files::write_atomically(path, lines.as_bytes()).map_err(write_error)
     }
 }
 
