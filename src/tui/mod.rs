@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod event_loop;
+pub mod flash;
 pub mod keymap;
 pub mod layout;
 pub mod main_panel;
