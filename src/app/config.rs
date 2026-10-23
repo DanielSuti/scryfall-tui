@@ -12,9 +12,9 @@ use thiserror::Error;
 /// joke cards.
 pub const DEFAULT_BASE: &str = "game:paper -is:funny";
 /// Pages loaded per batch when `search.max_pages` is not set.
-pub const DEFAULT_MAX_PAGES: NonZeroU32 = NonZeroU32::new(6).expect("non-zero");
+pub const DEFAULT_MAX_PAGES: NonZeroU32 = NonZeroU32::new(4).expect("non-zero");
 /// History entries kept when `history.max_entries` is not set.
-pub const DEFAULT_MAX_ENTRIES: NonZeroUsize = NonZeroUsize::new(100).expect("non-zero");
+pub const DEFAULT_MAX_ENTRIES: NonZeroUsize = NonZeroUsize::new(40).expect("non-zero");
 /// Formats whose legality the detail view shows when `detail.formats` is not set.
 pub const DEFAULT_FORMATS: &[&str] = &[
     "standard",
@@ -30,7 +30,7 @@ pub const DEFAULT_FORMATS: &[&str] = &[
 
 /// How long the cursor rests on a card before its rulings or image are fetched in `auto` mode,
 /// when `pause_ms` is not set.
-pub const DEFAULT_PAUSE_MS: u64 = 300;
+pub const DEFAULT_PAUSE_MS: u64 = 50;
 
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -153,7 +153,7 @@ impl LoadConfig {
 impl Default for LoadConfig {
     fn default() -> Self {
         Self {
-            split: LoadMode::Auto,
+            split: LoadMode::Trigger,
             full_detail: LoadMode::Auto,
             pause_ms: DEFAULT_PAUSE_MS,
         }
@@ -244,9 +244,9 @@ mod tests {
         let missing = Config::load(Path::new("/nonexistent/scry/config.toml")).unwrap();
         assert_eq!(missing, Config::default());
         assert_eq!(parse("").unwrap(), Config::default());
-        assert_eq!(Config::default().search.max_pages.get(), 6);
+        assert_eq!(Config::default().search.max_pages.get(), 4);
         assert_eq!(Config::default().search.base, "game:paper -is:funny");
-        assert_eq!(Config::default().history.max_entries.get(), 100);
+        assert_eq!(Config::default().history.max_entries.get(), 40);
         assert_eq!(Config::default().detail.formats.len(), 9);
         for load in [
             Config::default().detail.rulings,
@@ -254,9 +254,9 @@ mod tests {
         ] {
             assert_eq!(
                 (load.split, load.full_detail),
-                (LoadMode::Auto, LoadMode::Auto)
+                (LoadMode::Trigger, LoadMode::Auto)
             );
-            assert_eq!(load.pause(), Duration::from_millis(300));
+            assert_eq!(load.pause(), Duration::from_millis(50));
         }
     }
 
