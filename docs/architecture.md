@@ -35,4 +35,10 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 3. Otherwise a background task loads up to `search.max_pages` pages through `CardSearch`. Each page arrives as an `AppEvent` and is added to the cached results.
 4. When the cursor reaches the last loaded row and more pages exist, the next batch loads.
 
+## Rulings flow
+
+1. Whenever the detail shows a card, the app looks up its rulings by oracle id in the session's rulings.
+2. If they are missing, `detail.rulings` decides when to fetch: after `pause_ms` through a deadline returned by `App::next_deadline`, which the event loop turns into a tick, or at once.
+3. A background task fetches them through `CardRulings`, and they arrive as an `AppEvent`.
+
 The layout and keys are described in [ui-layout.md](ui-layout.md).

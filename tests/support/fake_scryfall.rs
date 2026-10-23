@@ -46,6 +46,7 @@ struct State {
     last_request: Option<Instant>,
     received: Vec<Received>,
     rulings: HashMap<String, Vec<Value>>,
+    failing_rulings: Vec<String>,
     rulings_received: Vec<Received>,
     base_url: String,
 }
@@ -70,11 +71,15 @@ pub fn template_card() -> Value {
     fixture("normal_glorybringer")
 }
 
-/// A single-faced creature card named `name`, built from [`template_card`].
+/// A single-faced creature card named `name`, built from [`template_card`]. Its printing id is
+/// `id-` and its oracle id `oracle-` followed by the name in lowercase with `-` for spaces,
+/// such as `id-sol-ring`.
 pub fn card_named(name: &str) -> Value {
+    let slug = name.to_lowercase().replace(' ', "-");
     let mut card = template_card();
     card["name"] = json!(name);
-    card["id"] = json!(format!("id-{}", name.to_lowercase().replace(' ', "-")));
+    card["id"] = json!(format!("id-{slug}"));
+    card["oracle_id"] = json!(format!("oracle-{slug}"));
     card
 }
 
@@ -108,6 +113,7 @@ impl FakeScryfall {
                 last_request: None,
                 received: Vec::new(),
                 rulings: HashMap::new(),
+                failing_rulings: Vec::new(),
                 rulings_received: Vec::new(),
                 base_url: server.uri(),
             })),
@@ -152,6 +158,16 @@ impl FakeScryfall {
             .unwrap()
             .rulings
             .insert(card_id.to_owned(), rulings);
+    }
+
+    /// Answers the rulings request for the card with id `card_id` with a 500 Error object, or
+    /// normally again when `failing` is false.
+    pub fn fail_rulings(&self, card_id: &str, failing: bool) {
+        let mut state = self.state.lock().unwrap();
+        state.failing_rulings.retain(|id| id != card_id);
+        if failing {
+            state.failing_rulings.push(card_id.to_owned());
+        }
     }
 
     /// Returns the rulings requests received so far.
@@ -321,6 +337,9 @@ impl Respond for FakeRulings {
                 "not_found",
                 "No card found with the given ID or set code and collector number.",
             );
+        }
+        if state.failing_rulings.iter().any(|failing| failing == id) {
+            return error(500, "internal_error", "Something went wrong on our end.");
         }
         let data = state.rulings.get(id).cloned().unwrap_or_default();
         ResponseTemplate::new(200).set_body_json(json!({

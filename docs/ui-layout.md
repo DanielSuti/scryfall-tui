@@ -178,5 +178,13 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 - **Search bar** shows the query as typed. When `search.base` is set, its terms appear dimmed on the right of the border as `+ game:paper -is:funny`, because every search adds them.
 
 - **Results rows** show name, mana cost and card types. Supertypes and subtypes are left out. Double-faced cards show both faces joined with ` // `, and a face with no mana cost shows `—`.
-- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`.
+- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`, then the rulings. Each ruling's date stands in a column left of its text, or above it below 36 columns:
+
+  ```
+  Rulings (5)
+  2017-04-18  You can’t exert a creature unless
+              an effect allows you to do so.
+  ```
+
+  Rulings take one Scryfall request per card and are kept for the session; printings of one card share them. With `detail.rulings.mode = "auto"` they are fetched in the split and the full detail once the cursor has rested on the card for `detail.rulings.pause_ms`, so holding `j` doesn't send a request per card. With `"full_detail"` they are fetched only in the full detail, as soon as it opens, and the split shows them only when they were already fetched. Meanwhile the detail says `Rulings: loading...`, a card without rulings says `No rulings`, and a failure shows its message; the failed fetch is retried when the card is shown again.
 - **History** shows each query and its result count, newest first.

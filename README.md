@@ -47,7 +47,7 @@ Press `<Space>sk` at any time to search the list of every key. Press `<Space>` a
 
 - **[1] Search** holds the query.
 - **[2] History** lists past queries with their result counts.
-- **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`.
+- **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`. The details show the card's text, its legality in your formats and its rulings.
 - **The status line** shows the mode, the focused panel, how many cards are loaded, the sort order, messages, and the most useful keys for the focused panel.
 
 The focused panel has a heavy green border, and its selected line is bold on a blue background (marked `▌` in the drawing above). Without focus, the results mark the selected card with `▌`, and the history shows no selection. The number in each title is the key that focuses it. The full layout, with mockups of every state, is in [docs/ui-layout.md](docs/ui-layout.md).
@@ -164,6 +164,8 @@ formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "
 mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d
 pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
 ```
+
+Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split doesn't fetch every card on the way.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 
