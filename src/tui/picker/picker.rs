@@ -11,6 +11,7 @@ use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, Clear};
 
 use crate::tui::text::{display_width, truncate};
+use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{ItemList, Motion};
 use crate::tui::widgets::query_input::QueryInput;
 
@@ -151,8 +152,8 @@ impl<T: Clone> Picker<T> {
 
     /// Draws the picker centred in `area`, sized to its items: as wide as the longest label
     /// and as tall as the item list, up to [`MAX_WIDTH_PERCENT`] and [`MAX_HEIGHT_PERCENT`]
-    /// of `area`.
-    pub fn render(&self, frame: &mut Frame, area: Rect) {
+    /// of `area`. The border is drawn in `theme.focus_border`, since the picker holds the keys.
+    pub fn render(&self, frame: &mut Frame, area: Rect, theme: &Theme) {
         let label_width = self
             .items
             .iter()
@@ -175,6 +176,8 @@ impl<T: Clone> Picker<T> {
         frame.render_widget(Clear, popup);
         let block = Block::bordered()
             .border_type(BorderType::Thick)
+            .border_style(theme.focus_border)
+            .title_style(theme.focus_border)
             .title(format!(" {} ", self.title))
             .title_bottom(format!(" {}/{} ", self.matches.len(), self.items.len()));
         let inner = block.inner(popup);

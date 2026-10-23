@@ -206,6 +206,23 @@ fn render(app: &App) -> TestBackend {
     terminal.backend().clone()
 }
 
+/// Returns the foreground color of the top-left border corner of each panel.
+fn corner_colors(app: &App) -> (ratatui::style::Color, ratatui::style::Color) {
+    let backend = render(app);
+    let areas = app.areas();
+    let corner = |rect: Rect| backend.buffer()[(rect.x, rect.y)].fg;
+    (corner(areas.history.unwrap()), corner(areas.main))
+}
+
+#[test]
+fn the_green_border_follows_the_focus() {
+    use ratatui::style::Color;
+    let mut app = sized(112, 12);
+    assert_eq!(corner_colors(&app), (Color::Reset, Color::Green));
+    type_text(&mut app, "2");
+    assert_eq!(corner_colors(&app), (Color::Green, Color::Reset));
+}
+
 #[test]
 fn number_keys_jump_between_panels() {
     let mut app = sized(112, 12);

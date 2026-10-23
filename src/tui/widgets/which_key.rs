@@ -4,13 +4,14 @@ use std::time::Duration;
 
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::style::{Modifier, Style};
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Clear, Widget};
 use tokio::time::Instant;
 
 use crate::tui::keymap::dispatcher::Continuation;
 use crate::tui::text::display_width;
+use crate::tui::theme::Theme;
 
 /// How long a key sequence must stay pending before the popup appears.
 pub const WHICH_KEY_DELAY: Duration = Duration::from_millis(400);
@@ -95,6 +96,7 @@ pub struct WhichKeyEntry {
 pub struct WhichKeyPopup<'a> {
     entries: &'a [WhichKeyEntry],
     title: Option<&'a str>,
+    key_style: Style,
 }
 
 /// Separates the subject of a description from its detail, as in `Name: A → Z`.
@@ -145,10 +147,11 @@ pub fn pair_case_twins(entries: Vec<WhichKeyEntry>) -> Vec<WhichKeyEntry> {
 
 impl<'a> WhichKeyPopup<'a> {
     /// Creates a popup listing `entries`.
-    pub fn new(entries: &'a [WhichKeyEntry]) -> Self {
+    pub fn new(entries: &'a [WhichKeyEntry], theme: &Theme) -> Self {
         Self {
             entries,
             title: None,
+            key_style: theme.key,
         }
     }
 
@@ -210,10 +213,7 @@ impl Widget for WhichKeyPopup<'_> {
                 break;
             }
             let line = Line::from(vec![
-                Span::styled(
-                    format!(" {:keys_width$} ", entry.keys),
-                    Style::default().add_modifier(Modifier::BOLD),
-                ),
+                Span::styled(format!(" {:keys_width$} ", entry.keys), self.key_style),
                 Span::raw(entry.description.as_str()),
             ]);
             line.render(

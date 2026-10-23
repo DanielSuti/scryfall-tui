@@ -35,6 +35,7 @@ use crate::tui::layout::{
 };
 use crate::tui::main_panel::{Back, MainView};
 use crate::tui::picker::picker::{Picker, PickerOutcome};
+use crate::tui::theme::Theme;
 use crate::tui::views::detail::DetailView;
 use crate::tui::views::history::HistoryView;
 use crate::tui::views::results::{ResultsView, load_summary};
@@ -101,6 +102,7 @@ impl std::fmt::Debug for Services {
 /// The whole application state. Rendering is a pure function of it.
 #[derive(Debug)]
 pub struct App {
+    theme: Theme,
     config: Config,
     services: Option<Services>,
     mode: Mode,
@@ -154,6 +156,7 @@ impl App {
     pub fn with_config(config: Config) -> Self {
         let max_history = config.history.max_entries;
         let mut app = Self {
+            theme: Theme::default(),
             config,
             services: None,
             mode: Mode::Normal,
@@ -563,15 +566,19 @@ impl App {
         self.search_bar.render(
             frame,
             areas.search,
-            self.title(Panel::SearchBar),
+            panel_block(
+                self.title(Panel::SearchBar),
+                focused(Panel::SearchBar),
+                &self.theme,
+            ),
             &self.config.search.base,
-            focused(Panel::SearchBar),
             focused(Panel::SearchBar) && self.mode == Mode::Insert && self.prompt.is_none(),
+            &self.theme,
         );
         if let Some(history) = areas.history {
             self.render_history(frame, history);
         }
-        let block = panel_block(self.title(Panel::Main), focused(Panel::Main));
+        let block = panel_block(self.title(Panel::Main), focused(Panel::Main), &self.theme);
         let inner = block.inner(areas.main);
         frame.render_widget(block, areas.main);
         if self.main_view == MainView::FullDetail {
@@ -581,7 +588,11 @@ impl App {
                 .render(inner, frame.buffer_mut(), focused(Panel::Main));
         }
         if let Some(detail) = areas.detail {
-            let block = panel_block(self.title(Panel::Detail), focused(Panel::Detail));
+            let block = panel_block(
+                self.title(Panel::Detail),
+                focused(Panel::Detail),
+                &self.theme,
+            );
             let inner = block.inner(detail);
             frame.render_widget(block, detail);
             self.detail.render(inner, frame.buffer_mut());
@@ -602,7 +613,8 @@ impl App {
             prompt.render(frame, input, true);
         } else {
             let hints = self.hints_for(self.focused_scope());
-            let mut status = StatusLine::new(self.mode).section(self.title(self.focus));
+            let mut status =
+                StatusLine::new(self.mode, &self.theme).section(self.title(self.focus));
             let standing = self.standing_message();
             if let Some(results) = self.displayed_results() {
                 status = status.section(load_summary(results));
@@ -618,7 +630,7 @@ impl App {
             );
         }
         if let Some(picker) = &self.picker {
-            picker.render(frame, frame.area());
+            picker.render(frame, frame.area(), &self.theme);
         }
         let entries = self.which_key_entries();
         if !entries.is_empty() {
@@ -626,7 +638,7 @@ impl App {
                 height: areas.status.y.saturating_sub(areas.search.y),
                 ..frame.area()
             };
-            WhichKeyPopup::new(&entries)
+            WhichKeyPopup::new(&entries, &self.theme)
                 .title(self.which_key.title())
                 .render(body, frame.buffer_mut());
         }
@@ -634,7 +646,7 @@ impl App {
 
     fn render_history(&self, frame: &mut Frame, area: Rect) {
         let focused = self.focus == Panel::History;
-        let block = panel_block(self.title(Panel::History), focused);
+        let block = panel_block(self.title(Panel::History), focused, &self.theme);
         let inner = block.inner(area);
         frame.render_widget(block, area);
         self.history_view.render(inner, frame.buffer_mut(), focused);

@@ -1,10 +1,10 @@
 //! Screen layout: search bar, history, main panel, optional detail split and status line.
 
 use ratatui::layout::{Constraint, Layout, Rect};
-use ratatui::style::{Modifier, Style};
 use ratatui::widgets::{Block, BorderType};
 
 use crate::app::command::Scope;
+use crate::tui::theme::Theme;
 
 /// Below this terminal width the history panel is hidden and opens as an overlay instead.
 pub const HISTORY_MIN_TERMINAL_WIDTH: u16 = 100;
@@ -118,13 +118,15 @@ impl ScreenAreas {
     }
 }
 
-/// A bordered panel block titled `title`. The focused panel gets a heavy border.
-pub fn panel_block(title: String, focused: bool) -> Block<'static> {
+/// A bordered panel block titled `title`. The focused panel gets a heavy border drawn in
+/// `theme.focus_border`; the others a rounded border in the terminal's default color.
+pub fn panel_block(title: String, focused: bool, theme: &Theme) -> Block<'static> {
     let block = Block::bordered().title(format!(" {title} "));
     if focused {
         block
             .border_type(BorderType::Thick)
-            .title_style(Style::default().add_modifier(Modifier::BOLD))
+            .border_style(theme.focus_border)
+            .title_style(theme.focus_border)
     } else {
         block.border_type(BorderType::Rounded)
     }
@@ -133,6 +135,26 @@ pub fn panel_block(title: String, focused: bool) -> Block<'static> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ratatui::buffer::Buffer;
+    use ratatui::style::{Color, Modifier};
+    use ratatui::widgets::Widget;
+
+    #[test]
+    fn the_focused_border_is_drawn_in_the_focus_style() {
+        let theme = Theme::default();
+        let area = Rect::new(0, 0, 12, 3);
+        for (focused, corner, fg) in [(true, "┏", Some(Color::Green)), (false, "╭", None)] {
+            let mut buf = Buffer::empty(area);
+            panel_block("[3] X".into(), focused, &theme).render(area, &mut buf);
+            let cell = &buf[(0, 0)];
+            assert_eq!(cell.symbol(), corner);
+            assert_eq!(cell.fg, fg.unwrap_or(Color::Reset), "focused: {focused}");
+            assert_eq!(cell.modifier.contains(Modifier::BOLD), focused);
+            let title = &buf[(2, 0)];
+            assert_eq!(title.symbol(), "[");
+            assert_eq!(title.fg, fg.unwrap_or(Color::Reset));
+        }
+    }
 
     #[test]
     fn history_takes_a_quarter_at_and_above_the_threshold() {
