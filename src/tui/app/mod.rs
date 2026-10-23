@@ -1,6 +1,7 @@
 //! Application state and event handling.
 
 mod commands;
+mod detail_load;
 mod flash;
 mod history;
 pub mod registrar;
@@ -134,8 +135,7 @@ pub struct App {
     format_warning: Option<String>,
     formats_checked: bool,
     rulings: HashMap<String, RulingsState>,
-    rulings_shown: Option<String>,
-    pending_rulings: Option<rulings::PendingRulings>,
+    rulings_schedule: detail_load::LoadSchedule,
     history: History,
     history_path: Option<std::path::PathBuf>,
     history_view: HistoryView,
@@ -194,8 +194,7 @@ impl App {
             format_warning: None,
             formats_checked: false,
             rulings: HashMap::new(),
-            rulings_shown: None,
-            pending_rulings: None,
+            rulings_schedule: detail_load::LoadSchedule::default(),
             history: History::new(max_history),
             history_path: None,
             history_view: HistoryView::new(),
@@ -416,14 +415,10 @@ impl App {
     /// Returns when the app next needs an [`AppEvent::Tick`], or `None` when it waits only
     /// for other events.
     pub fn next_deadline(&self) -> Option<Instant> {
-        let rulings = self
-            .pending_rulings
-            .as_ref()
-            .map(rulings::PendingRulings::due);
-        match (self.which_key.deadline(), rulings) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        }
+        [self.which_key.deadline(), self.rulings_schedule.deadline()]
+            .into_iter()
+            .flatten()
+            .min()
     }
 
     /// Returns the entries of the which-key popup, with case twins on one line, or an empty

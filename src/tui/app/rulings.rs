@@ -4,30 +4,15 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
-use crate::app::config::LoadMode;
 use crate::domain::card::Card;
 use crate::domain::ruling::{Ruling, RulingsState};
 use crate::search::MAX_RATE_LIMIT_RETRIES;
+use crate::tui::app::detail_load::Known;
 use crate::tui::app::{App, AppEvent};
 use crate::tui::main_panel::MainView;
 
 /// Shown when the app runs without a rulings source, which only happens in tests.
 const NO_RULINGS_SOURCE: &str = "no rulings source is configured";
-
-/// A fetch that starts once the cursor has rested on its card until `due`.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct PendingRulings {
-    key: String,
-    card_id: String,
-    due: Instant,
-}
-
-impl PendingRulings {
-    /// Returns when the fetch starts.
-    pub(super) fn due(&self) -> Instant {
-        self.due
-    }
-}
 
 /// Returns the key `card`'s rulings are kept under: its oracle id, shared by every printing,
 /// or its printing id when it has none.
@@ -41,59 +26,41 @@ impl App {
     pub(super) fn rulings_for(&self, card: &Card) -> Option<&RulingsState> {
         const LOADING: &RulingsState = &RulingsState::Loading;
         let key = rulings_key(card);
-        self.rulings.get(&key).or_else(|| {
-            self.pending_rulings
-                .as_ref()
-                .is_some_and(|p| p.key == key)
-                .then_some(LOADING)
-        })
+        self.rulings
+            .get(&key)
+            .or_else(|| self.rulings_schedule.is_pending(&key).then_some(LOADING))
     }
 
-    /// Prepares the rulings of `card`, the card the detail shows, or of no card. In `auto`
-    /// mode a fetch starts once the cursor has rested for `pause_ms`; in `full_detail` mode it
-    /// starts at once in the full detail and not at all in the split; in `never` mode it
-    /// never starts. Rulings already known are not fetched again, except after a failure when
-    /// the card is shown anew.
+    /// Prepares the rulings of `card`, the card the detail shows, or of no card, as
+    /// `detail.rulings` asks. Rulings already known are not fetched again, except after a
+    /// failure when the card is shown anew.
     pub(super) fn schedule_rulings(&mut self, card: Option<&Card>) {
         let key = card.map(rulings_key);
-        let shown_anew = key != self.rulings_shown;
-        self.rulings_shown.clone_from(&key);
-        let (Some(card), Some(key)) = (card, key) else {
-            self.pending_rulings = None;
-            return;
+        let known = match key.as_ref().and_then(|k| self.rulings.get(k)) {
+            None => Known::Missing,
+            Some(RulingsState::Failed(_)) => Known::Failed,
+            Some(_) => Known::Kept,
         };
-        if shown_anew && matches!(self.rulings.get(&key), Some(RulingsState::Failed(_))) {
-            self.rulings.remove(&key);
-        }
         let settings = &self.config.detail.rulings;
-        let pause = match settings.mode {
-            LoadMode::Auto => settings.pause(),
-            LoadMode::FullDetail if self.main_view == MainView::FullDetail => {
-                std::time::Duration::ZERO
-            }
-            LoadMode::FullDetail | LoadMode::Never => {
-                self.pending_rulings = None;
-                return;
-            }
-        };
-        if self.rulings.contains_key(&key) {
-            self.pending_rulings = None;
-        } else if pause.is_zero() {
-            self.pending_rulings = None;
-            self.fetch_rulings(key, card.id().to_owned());
-        } else if self.pending_rulings.as_ref().is_none_or(|p| p.key != key) {
-            self.pending_rulings = Some(PendingRulings {
-                key,
-                card_id: card.id().to_owned(),
-                due: Instant::now() + pause,
-            });
+        let plan = self.rulings_schedule.schedule(
+            key.as_deref().zip(card.map(Card::id)),
+            known,
+            settings.mode,
+            settings.pause(),
+            self.main_view == MainView::FullDetail,
+        );
+        if let (true, Some(key)) = (plan.forget_failure, &key) {
+            self.rulings.remove(key);
+        }
+        if let Some(fetch) = plan.fetch {
+            self.fetch_rulings(fetch.key, fetch.card_id);
         }
     }
 
     /// Starts the waiting fetch once its time has come.
     pub(super) fn start_due_rulings(&mut self, now: Instant) {
-        if let Some(pending) = self.pending_rulings.take_if(|p| p.due <= now) {
-            self.fetch_rulings(pending.key, pending.card_id);
+        if let Some(fetch) = self.rulings_schedule.take_due(now) {
+            self.fetch_rulings(fetch.key, fetch.card_id);
         }
     }
 
