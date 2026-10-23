@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use tokio::time::Instant;
 
+use crate::app::config::LoadMode;
 use crate::domain::card::Card;
 use crate::domain::ruling::{Ruling, RulingsState};
 use crate::search::MAX_RATE_LIMIT_RETRIES;
@@ -22,9 +23,13 @@ pub(super) fn rulings_key(card: &Card) -> String {
 
 impl App {
     /// Returns the rulings the detail shows for `card`: those known, or loading while a fetch
-    /// waits for the cursor to rest. Returns `None` when they are not fetched in this view.
+    /// waits for the cursor to rest. Returns `None` when they are not fetched yet, or when the
+    /// view is set to `never`, which hides them even when known.
     pub(super) fn rulings_for(&self, card: &Card) -> Option<&RulingsState> {
         const LOADING: &RulingsState = &RulingsState::Loading;
+        if self.rulings_mode() == LoadMode::Never {
+            return None;
+        }
         let key = rulings_key(card);
         self.rulings
             .get(&key)
@@ -45,9 +50,8 @@ impl App {
         let plan = self.rulings_schedule.schedule(
             key.as_deref().zip(card.map(Card::id)),
             known,
-            settings.mode,
+            settings.mode_in(self.main_view == MainView::FullDetail),
             settings.pause(),
-            self.main_view == MainView::FullDetail,
         );
         if let (true, Some(key)) = (plan.forget_failure, &key) {
             self.rulings.remove(key);
@@ -55,6 +59,12 @@ impl App {
         if let Some(fetch) = plan.fetch {
             self.fetch_rulings(fetch.key, fetch.card_id);
         }
+    }
+
+    /// Returns the mode of `detail.rulings` in the view the detail is shown in.
+    fn rulings_mode(&self) -> LoadMode {
+        let full_detail = self.main_view == MainView::FullDetail;
+        self.config.detail.rulings.mode_in(full_detail)
     }
 
     /// Starts the waiting fetch once its time has come.

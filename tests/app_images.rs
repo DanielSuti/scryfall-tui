@@ -23,13 +23,15 @@ fn cards() -> Vec<serde_json::Value> {
         .collect()
 }
 
-/// Starts with images in `mode` after a short pause, rulings off, and a terminal that draws
-/// images when `picker` is true, and searches for every card.
-async fn start_with(mode: LoadMode, picker: bool) -> Harness {
+/// Starts with images in `split` and `full_detail` mode after a short pause, rulings off, and
+/// a terminal that draws images when `picker` is true, and searches for every card.
+async fn start_with(split: LoadMode, full_detail: LoadMode, picker: bool) -> Harness {
     let mut config = Config::default();
     config.search.base = String::new();
-    config.detail.rulings.mode = LoadMode::Never;
-    config.detail.images.mode = mode;
+    config.detail.rulings.split = LoadMode::Never;
+    config.detail.rulings.full_detail = LoadMode::Never;
+    config.detail.images.split = split;
+    config.detail.images.full_detail = full_detail;
     config.detail.images.pause_ms = 20;
     let mut h = Harness::start_with_config(cards(), 175, config).await;
     if picker {
@@ -39,8 +41,9 @@ async fn start_with(mode: LoadMode, picker: bool) -> Harness {
     h
 }
 
+/// Starts with images in `mode` in both views.
 async fn start(mode: LoadMode) -> Harness {
-    start_with(mode, true).await
+    start_with(mode, mode, true).await
 }
 
 fn images_requested(h: &Harness) -> Vec<String> {
@@ -125,13 +128,14 @@ async fn auto_mode_draws_the_image_beside_the_text_once_the_cursor_rests() {
 }
 
 #[tokio::test]
-async fn full_detail_mode_fetches_only_after_d_and_draws_on_the_left() {
-    let mut h = start(LoadMode::FullDetail).await;
+async fn each_view_follows_its_own_mode_and_the_full_detail_draws_on_the_left() {
+    let mut h = start_with(LoadMode::Never, LoadMode::Auto, true).await;
     h.press("<CR>");
     assert!(!h.screen().contains("Loading image..."));
     assert_eq!(h.app.next_deadline(), None);
     h.press("d");
     assert!(h.screen().contains("Loading image..."));
+    h.tick_at_deadline().await;
     deliver(&mut h).await;
     assert_eq!(images_requested(&h), ["/images/id-dragon-mage.png?"]);
     let inner = detail_inner(&h);
@@ -146,20 +150,23 @@ async fn full_detail_mode_fetches_only_after_d_and_draws_on_the_left() {
     );
     h.press("<CR>");
     assert!(
-        h.screen().contains("Loading image..."),
-        "the split shows an image already fetched, once encoded for its box"
+        !screen_has_image(&h) && !h.screen().contains("Loading image..."),
+        "a split set to never hides an image already fetched: {}",
+        h.screen()
     );
-    assert_eq!(h.app.next_deadline(), None, "and fetches nothing");
-    h.next_event().await;
-    let inner = detail_inner(&h);
-    assert!(image_at(&h, inner.right() - 20, inner.y), "{}", h.screen());
+    assert!(
+        h.app.detail_lines()[0].ends_with("{3}{R}{R}") && h.app.detail_lines()[0].len() > 40,
+        "the text takes the full width: {:#?}",
+        h.app.detail_lines()
+    );
+    assert_eq!(h.app.next_deadline(), None);
 }
 
 #[tokio::test]
 async fn never_mode_and_terminals_without_graphics_fetch_nothing() {
     for h in [
         start(LoadMode::Never).await,
-        start_with(LoadMode::Auto, false).await,
+        start_with(LoadMode::Auto, LoadMode::Auto, false).await,
     ] {
         let mut h = h;
         h.press("<CR>");

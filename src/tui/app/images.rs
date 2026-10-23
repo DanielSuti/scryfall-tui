@@ -94,18 +94,15 @@ impl CardImages {
 impl App {
     /// Returns the image box for `card` in a detail of `inner` cells: on the left in the full
     /// detail, beside the text in the split. Returns `None` when the terminal can't draw
-    /// images, the card has none, `detail.images` doesn't show it in this view, or there is no
-    /// room. In `full_detail` mode the split shows an image already downloaded.
+    /// images, the card has none, `detail.images` is `never` in this view, even for an image
+    /// already downloaded, or there is no room.
     pub(super) fn image_box(&self, card: &Card, inner: Size) -> Option<ImageBox> {
         let picker = self.image_picker.as_ref()?;
         card.image_url()?;
         let full_detail = self.main_view == MainView::FullDetail;
-        match self.config.detail.images.mode {
+        match self.config.detail.images.mode_in(full_detail) {
             LoadMode::Never => return None,
-            LoadMode::FullDetail if !full_detail && self.images.bytes(card.id()).is_none() => {
-                return None;
-            }
-            LoadMode::Auto | LoadMode::FullDetail => {}
+            LoadMode::Auto => {}
         }
         let font = picker.font_size();
         let cell = Size::new(font.width, font.height);
@@ -133,9 +130,8 @@ impl App {
         let plan = self.image_schedule.schedule(
             target.map(|(id, _)| (id, id)),
             known,
-            settings.mode,
+            settings.mode_in(self.main_view == MainView::FullDetail),
             settings.pause(),
-            self.main_view == MainView::FullDetail,
         );
         let ((card_id, url), area) = (target?, area?);
         if plan.forget_failure {

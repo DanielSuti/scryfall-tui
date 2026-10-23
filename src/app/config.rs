@@ -28,12 +28,9 @@ pub const DEFAULT_FORMATS: &[&str] = &[
     "timeless",
 ];
 
-/// How long the cursor rests on a card before its rulings are fetched in `auto` mode, when
-/// `detail.rulings.pause_ms` is not set.
-pub const DEFAULT_RULINGS_PAUSE_MS: u64 = 300;
-/// How long the cursor rests on a card before its image is fetched in `auto` mode, when
-/// `detail.images.pause_ms` is not set.
-pub const DEFAULT_IMAGES_PAUSE_MS: u64 = 300;
+/// How long the cursor rests on a card before its rulings or image are fetched in `auto` mode,
+/// when `pause_ms` is not set.
+pub const DEFAULT_PAUSE_MS: u64 = 300;
 
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -89,87 +86,74 @@ pub struct DetailConfig {
     /// Format names whose legality the detail view shows, in this order. An empty list hides
     /// the legalities.
     pub formats: Vec<String>,
-    /// `[detail.rulings]`
-    pub rulings: RulingsConfig,
-    /// `[detail.images]`
-    pub images: ImagesConfig,
+    /// `[detail.rulings]`: when the card's rulings are fetched.
+    pub rulings: LoadConfig,
+    /// `[detail.images]`: when the card's image is fetched. Images are shown only in terminals
+    /// with a graphics protocol.
+    pub images: LoadConfig,
 }
 
 impl Default for DetailConfig {
     fn default() -> Self {
         Self {
             formats: DEFAULT_FORMATS.iter().map(|f| (*f).to_owned()).collect(),
-            rulings: RulingsConfig::default(),
-            images: ImagesConfig::default(),
+            rulings: LoadConfig::default(),
+            images: LoadConfig::default(),
         }
     }
 }
 
-/// When the detail loads data beyond the card itself, such as its rulings.
+/// When one view of the detail loads data beyond the card itself, such as its rulings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LoadMode {
-    /// In the split and the full detail, once the cursor has rested on the card for
-    /// `pause_ms`.
+    /// Once the cursor has rested on the card for `pause_ms`.
     #[default]
     Auto,
-    /// Only in the full detail, as soon as it opens.
-    FullDetail,
-    /// Never.
+    /// Never. The view doesn't show the data, even when it was loaded in the other view.
     Never,
 }
 
-/// The `[detail.rulings]` table.
+/// A table saying when the detail loads one kind of data, in the split and in the full detail.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct RulingsConfig {
-    /// When rulings are fetched.
-    pub mode: LoadMode,
-    /// In `auto` mode, how long the cursor rests on a card before its rulings are fetched, in
-    /// milliseconds. 0 fetches them at once.
-    pub pause_ms: u64,
-}
-
-impl RulingsConfig {
-    /// Returns `pause_ms` as a duration.
-    pub fn pause(&self) -> Duration {
-        Duration::from_millis(self.pause_ms)
-    }
-}
-
-impl Default for RulingsConfig {
-    fn default() -> Self {
-        Self {
-            mode: LoadMode::Auto,
-            pause_ms: DEFAULT_RULINGS_PAUSE_MS,
-        }
-    }
-}
-
-/// The `[detail.images]` table. Images are shown only in terminals with a graphics protocol.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-#[serde(default, deny_unknown_fields)]
-pub struct ImagesConfig {
-    /// When card images are fetched. `never` also skips asking the terminal which graphics
-    /// protocol it supports.
-    pub mode: LoadMode,
-    /// In `auto` mode, how long the cursor rests on a card before its image is fetched, in
+pub struct LoadConfig {
+    /// When the data is loaded in the split.
+    pub split: LoadMode,
+    /// When the data is loaded in the full detail.
+    pub full_detail: LoadMode,
+    /// In `auto` mode, how long the cursor rests on a card before the data is fetched, in
     /// milliseconds. 0 fetches it at once.
     pub pause_ms: u64,
 }
 
-impl ImagesConfig {
+impl LoadConfig {
+    /// Returns the mode of the full detail when `full_detail` is true, else of the split.
+    pub fn mode_in(&self, full_detail: bool) -> LoadMode {
+        if full_detail {
+            self.full_detail
+        } else {
+            self.split
+        }
+    }
+
+    /// Returns true when neither view ever loads the data.
+    pub fn is_never(&self) -> bool {
+        self.split == LoadMode::Never && self.full_detail == LoadMode::Never
+    }
+
     /// Returns `pause_ms` as a duration.
     pub fn pause(&self) -> Duration {
         Duration::from_millis(self.pause_ms)
     }
 }
 
-impl Default for ImagesConfig {
+impl Default for LoadConfig {
     fn default() -> Self {
         Self {
-            mode: LoadMode::Auto,
-            pause_ms: DEFAULT_IMAGES_PAUSE_MS,
+            split: LoadMode::Auto,
+            full_detail: LoadMode::Auto,
+            pause_ms: DEFAULT_PAUSE_MS,
         }
     }
 }
@@ -262,12 +246,16 @@ mod tests {
         assert_eq!(Config::default().search.base, "game:paper -is:funny");
         assert_eq!(Config::default().history.max_entries.get(), 100);
         assert_eq!(Config::default().detail.formats.len(), 9);
-        let rulings = Config::default().detail.rulings;
-        assert_eq!(rulings.mode, LoadMode::Auto);
-        assert_eq!(rulings.pause(), Duration::from_millis(300));
-        let images = Config::default().detail.images;
-        assert_eq!(images.mode, LoadMode::Auto);
-        assert_eq!(images.pause(), Duration::from_millis(300));
+        for load in [
+            Config::default().detail.rulings,
+            Config::default().detail.images,
+        ] {
+            assert_eq!(
+                (load.split, load.full_detail),
+                (LoadMode::Auto, LoadMode::Auto)
+            );
+            assert_eq!(load.pause(), Duration::from_millis(300));
+        }
     }
 
     #[test]
@@ -287,22 +275,27 @@ mod tests {
         assert_eq!(custom.search.base, "f:commander");
         assert_eq!(config.history.max_entries.get(), 5);
         assert_eq!(config.detail.formats, ["modern"]);
-        let rulings = parse("[detail.rulings]\nmode = \"full_detail\"\npause_ms = 0").unwrap();
-        assert_eq!(rulings.detail.rulings.mode, LoadMode::FullDetail);
-        assert_eq!(rulings.detail.rulings.pause(), Duration::ZERO);
+        let rulings = parse("[detail.rulings]\nsplit = \"never\"\npause_ms = 0").unwrap();
+        let load = &rulings.detail.rulings;
+        assert_eq!(
+            (load.split, load.full_detail),
+            (LoadMode::Never, LoadMode::Auto)
+        );
+        assert_eq!(load.mode_in(false), LoadMode::Never);
+        assert_eq!(load.mode_in(true), LoadMode::Auto);
+        assert!(!load.is_never());
+        assert_eq!(load.pause(), Duration::ZERO);
         assert_eq!(
             rulings.detail.formats.len(),
             9,
             "the formats keep their default"
         );
-        let never = parse("[detail.rulings]\nmode = \"never\"").unwrap();
-        assert_eq!(never.detail.rulings.mode, LoadMode::Never);
-        let images = parse("[detail.images]\nmode = \"never\"\npause_ms = 50").unwrap();
-        assert_eq!(images.detail.images.mode, LoadMode::Never);
+        let images =
+            parse("[detail.images]\nsplit = \"never\"\nfull_detail = \"never\"\npause_ms = 50")
+                .unwrap();
+        assert!(images.detail.images.is_never());
         assert_eq!(images.detail.images.pause(), Duration::from_millis(50));
-        assert_eq!(images.detail.rulings, RulingsConfig::default());
-        let full = parse("[detail.images]\nmode = \"full_detail\"").unwrap();
-        assert_eq!(full.detail.images.mode, LoadMode::FullDetail);
+        assert_eq!(images.detail.rulings, LoadConfig::default());
     }
 
     #[test]
@@ -316,11 +309,12 @@ mod tests {
             ("[search]\nbase = 3", "base"),
             ("[search]\nmax_page = 2", "max_page"),
             ("colour = true", "colour"),
-            ("[detail.rulings]\nmode = \"split\"", "full_detail"),
-            ("[detail.rulings]\nmode = \"split\"", "never"),
+            ("[detail.rulings]\nsplit = \"sometimes\"", "never"),
+            ("[detail.rulings]\nfull_detail = \"split\"", "auto"),
+            ("[detail.rulings]\nmode = \"auto\"", "mode"),
             ("[detail.rulings]\npause_ms = -1", "pause_ms"),
             ("[detail.rulings]\ndelay = 1", "delay"),
-            ("[detail.images]\nmode = \"split\"", "never"),
+            ("[detail.images]\nsplit = \"full_detail\"", "never"),
             ("[detail.images]\npause_ms = -1", "pause_ms"),
             ("[detail.images]\nsize = \"large\"", "size"),
         ] {

@@ -161,17 +161,19 @@ max_entries = 100               # entries kept, at least 1
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
 
 [detail.rulings]
-mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d; "never"
-pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
+split = "auto"                  # in the split: "auto" or "never"
+full_detail = "auto"            # in the full detail: "auto" or "never"
+pause_ms = 300                  # "auto": how long the cursor rests on a card first; 0 for at once
 
 [detail.images]
-mode = "auto"                   # "auto": in the split and the full detail; "full_detail": only after d; "never"
-pause_ms = 300                  # auto mode: how long the cursor rests on a card first; 0 for at once
+split = "auto"                  # in the split: "auto" or "never"
+full_detail = "auto"            # in the full detail: "auto" or "never"
+pause_ms = 300                  # "auto": how long the cursor rests on a card first; 0 for at once
 ```
 
-Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split doesn't fetch every card on the way.
+Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split or stepping with `J`/`K` doesn't fetch every card on the way. A view set to `never` neither fetches them nor shows them, even when the other view already did.
 
-Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `mode = "never"` skips that question. Terminals without one, such as Alacritty, show no image.
+Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `never` in both views skips that question. Terminals without one, such as Alacritty, show no image.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 

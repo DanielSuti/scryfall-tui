@@ -45,17 +45,15 @@ pub(super) struct LoadSchedule {
 
 impl LoadSchedule {
     /// Plans the fetch for the card the detail shows, given as its key and printing id, or for
-    /// no card. In `auto` mode a fetch starts once the cursor has rested for `pause`; in
-    /// `full_detail` mode it starts at once when `full_detail` is true and not at all
-    /// otherwise; in `never` mode it never starts. Nothing is fetched when `known` is
-    /// [`Known::Kept`], or when it is [`Known::Failed`] and the card was already shown.
+    /// no card, in the view whose mode is `mode`. In `auto` mode a fetch starts once the cursor
+    /// has rested for `pause`; in `never` mode it never starts. Nothing is fetched when `known`
+    /// is [`Known::Kept`], or when it is [`Known::Failed`] and the card was already shown.
     pub(super) fn schedule(
         &mut self,
         card: Option<(&str, &str)>,
         known: Known,
         mode: LoadMode,
         pause: Duration,
-        full_detail: bool,
     ) -> Plan {
         let key = card.map(|(key, _)| key.to_owned());
         let shown_anew = key != self.shown;
@@ -72,8 +70,7 @@ impl LoadSchedule {
         };
         let pause = match mode {
             LoadMode::Auto => pause,
-            LoadMode::FullDetail if full_detail => Duration::ZERO,
-            LoadMode::FullDetail | LoadMode::Never => {
+            LoadMode::Never => {
                 self.pending = None;
                 return plan;
             }
@@ -127,70 +124,50 @@ mod tests {
     }
 
     #[test]
-    fn auto_mode_waits_for_the_pause_in_every_view() {
-        for full_detail in [false, true] {
-            let mut s = LoadSchedule::default();
-            let plan = s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE, full_detail);
-            assert_eq!(plan, Plan::default());
-            assert!(s.is_pending("oracle-a"));
-            let due = s.deadline().unwrap();
-            assert_eq!(s.take_due(due - Duration::from_millis(1)), None);
-            assert_eq!(s.take_due(due), Some(fetch_a()));
-            assert_eq!(s.deadline(), None);
-        }
+    fn auto_mode_waits_for_the_pause() {
+        let mut s = LoadSchedule::default();
+        let plan = s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE);
+        assert_eq!(plan, Plan::default());
+        assert!(s.is_pending("oracle-a"));
+        let due = s.deadline().unwrap();
+        assert_eq!(s.take_due(due - Duration::from_millis(1)), None);
+        assert_eq!(s.take_due(due), Some(fetch_a()));
+        assert_eq!(s.deadline(), None);
     }
 
     #[test]
     fn a_zero_pause_fetches_at_once() {
         let mut s = LoadSchedule::default();
-        let plan = s.schedule(A, Known::Missing, LoadMode::Auto, Duration::ZERO, false);
+        let plan = s.schedule(A, Known::Missing, LoadMode::Auto, Duration::ZERO);
         assert_eq!(plan.fetch, Some(fetch_a()));
         assert_eq!(s.deadline(), None);
     }
 
     #[test]
-    fn full_detail_mode_fetches_at_once_only_in_the_full_detail() {
-        let mut s = LoadSchedule::default();
-        let split = s.schedule(A, Known::Missing, LoadMode::FullDetail, PAUSE, false);
-        assert_eq!(split, Plan::default());
-        assert_eq!(s.deadline(), None);
-        let full = s.schedule(A, Known::Missing, LoadMode::FullDetail, PAUSE, true);
-        assert_eq!(full.fetch, Some(fetch_a()));
-    }
-
-    #[test]
     fn never_mode_fetches_nothing() {
         let mut s = LoadSchedule::default();
-        for full_detail in [false, true] {
-            let plan = s.schedule(
-                A,
-                Known::Missing,
-                LoadMode::Never,
-                Duration::ZERO,
-                full_detail,
-            );
-            assert_eq!(plan, Plan::default());
-            assert_eq!(s.deadline(), None);
-        }
+        let plan = s.schedule(A, Known::Missing, LoadMode::Never, Duration::ZERO);
+        assert_eq!(plan, Plan::default());
+        assert_eq!(s.deadline(), None);
     }
 
     #[test]
     fn kept_data_is_not_fetched_again() {
         let mut s = LoadSchedule::default();
-        let plan = s.schedule(A, Known::Kept, LoadMode::Auto, Duration::ZERO, false);
+        let plan = s.schedule(A, Known::Kept, LoadMode::Auto, Duration::ZERO);
         assert_eq!(plan, Plan::default());
     }
 
     #[test]
     fn a_failure_is_retried_only_when_the_card_is_shown_anew() {
         let mut s = LoadSchedule::default();
-        let first = s.schedule(A, Known::Failed, LoadMode::Auto, Duration::ZERO, false);
+        let first = s.schedule(A, Known::Failed, LoadMode::Auto, Duration::ZERO);
         assert!(first.forget_failure);
         assert_eq!(first.fetch, Some(fetch_a()));
-        let again = s.schedule(A, Known::Failed, LoadMode::Auto, Duration::ZERO, false);
+        let again = s.schedule(A, Known::Failed, LoadMode::Auto, Duration::ZERO);
         assert_eq!(again, Plan::default(), "still shown: the failure stays");
-        s.schedule(B, Known::Missing, LoadMode::Never, PAUSE, false);
-        let back = s.schedule(A, Known::Failed, LoadMode::Never, PAUSE, false);
+        s.schedule(B, Known::Missing, LoadMode::Never, PAUSE);
+        let back = s.schedule(A, Known::Failed, LoadMode::Never, PAUSE);
         assert!(
             back.forget_failure,
             "forgotten even when nothing is fetched"
@@ -201,14 +178,14 @@ mod tests {
     #[test]
     fn moving_on_drops_the_waiting_fetch() {
         let mut s = LoadSchedule::default();
-        s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE, false);
+        s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE);
         let due = s.deadline().unwrap();
-        s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE, false);
+        s.schedule(A, Known::Missing, LoadMode::Auto, PAUSE);
         assert_eq!(s.deadline(), Some(due), "staying keeps the deadline");
-        s.schedule(B, Known::Missing, LoadMode::Auto, PAUSE, false);
+        s.schedule(B, Known::Missing, LoadMode::Auto, PAUSE);
         assert!(s.is_pending("oracle-b"));
         assert!(!s.is_pending("oracle-a"));
-        s.schedule(None, Known::Missing, LoadMode::Auto, PAUSE, false);
+        s.schedule(None, Known::Missing, LoadMode::Auto, PAUSE);
         assert_eq!(s.deadline(), None);
     }
 }
