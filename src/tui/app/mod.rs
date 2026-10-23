@@ -43,7 +43,7 @@ use crate::tui::widgets::item_list::{Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::Pane;
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
-use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup};
+use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup, pair_case_twins};
 
 pub use commands::*;
 pub use search::{NEW_SEARCH, RUN_SEARCH};
@@ -410,12 +410,14 @@ impl App {
         self.which_key.deadline()
     }
 
-    /// Returns the entries of the which-key popup, or an empty list when it is hidden.
+    /// Returns the entries of the which-key popup, with case twins on one line, or an empty
+    /// list when it is hidden.
     pub fn which_key_entries(&self) -> Vec<WhichKeyEntry> {
         if !self.which_key.visible() {
             return Vec::new();
         }
-        self.which_key
+        let entries = self
+            .which_key
             .continuations()
             .iter()
             .map(|c| WhichKeyEntry {
@@ -425,7 +427,13 @@ impl App {
                     .get(c.command)
                     .map_or_else(|| c.command.to_string(), |cmd| cmd.description.to_string()),
             })
-            .collect()
+            .collect();
+        pair_case_twins(entries)
+    }
+
+    /// Returns the title of the which-key popup, if the pending prefix has one.
+    pub fn which_key_title(&self) -> Option<&'static str> {
+        self.which_key.title()
     }
 
     /// Runs the command with `id`. Unknown ids are ignored, because every bound id is
@@ -528,7 +536,12 @@ impl App {
                 self.run_command(id);
             }
             Dispatch::Pending(continuations) => {
-                self.which_key.start(continuations, Instant::now());
+                let group = self
+                    .keymap
+                    .group_for(self.mode, &scopes, self.dispatcher.pending());
+                let (title, instant) = group.map_or((None, false), |g| (Some(g.title), g.instant));
+                self.which_key
+                    .start(continuations, Instant::now(), title, instant);
             }
             Dispatch::NoMatch(_) => {
                 self.which_key.clear();
@@ -670,7 +683,9 @@ impl App {
                 height: areas.status.y.saturating_sub(areas.search.y),
                 ..frame.area()
             };
-            WhichKeyPopup::new(&entries).render(body, frame.buffer_mut());
+            WhichKeyPopup::new(&entries)
+                .title(self.which_key.title())
+                .render(body, frame.buffer_mut());
         }
     }
 

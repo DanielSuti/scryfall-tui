@@ -87,6 +87,49 @@ fn app_with_leader_commands() -> App {
     app
 }
 
+fn app_with_instant_group() -> App {
+    let mut app = App::new();
+    test_command(&mut app, "test.thing", "\\a", "Thing: up");
+    test_command(&mut app, "test.thing_reverse", "\\A", "Thing: down");
+    test_command(&mut app, "test.other", "\\o", "Other");
+    app.keymap
+        .describe_prefix(Mode::Normal, Scope::GLOBAL, "\\", "Test group", true)
+        .unwrap();
+    app
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_instant_group_shows_at_once_with_twins_paired() {
+    let mut app = app_with_instant_group();
+    app.handle_event(key(KeyCode::Char('\\')));
+    assert_eq!(app.which_key_title(), Some("Test group"));
+    let listed: Vec<(String, String)> = app
+        .which_key_entries()
+        .into_iter()
+        .map(|e| (e.keys, e.description))
+        .collect();
+    assert_eq!(
+        listed,
+        [
+            ("a/A".to_owned(), "Thing: up / down".to_owned()),
+            ("o".to_owned(), "Other".to_owned())
+        ]
+    );
+    app.handle_event(key(KeyCode::Char(' ')));
+    assert!(
+        app.which_key_entries().is_empty(),
+        "<leader> still waits for the delay"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn renders_titled_which_key_popup() {
+    let mut app = app_with_instant_group();
+    app.handle_event(AppEvent::Resize(40, 10));
+    app.handle_event(key(KeyCode::Char('\\')));
+    insta::assert_snapshot!(render(&app));
+}
+
 #[tokio::test(start_paused = true)]
 async fn which_key_appears_after_the_delay_and_lists_the_registry() {
     let mut app = app_with_leader_commands();

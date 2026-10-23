@@ -40,3 +40,4 @@ All notable changes to this project are documented in this file, newest release 
 - Arrow, Home/End and PageUp/PageDown keys move like `j`/`k`, `gg`/`G` and `<C-d>`/`<C-u>`.
 - `s` on the results opens a sort picker for name or release date. Scryfall sorts all matches, and the order stays for the session.
 - Command handlers can capture values and descriptions can be built at run time, so one loop can register a family of related commands.
+- Which-key popups can carry a title and appear at once for chosen prefixes, and show a lowercase key and its uppercase twin on one line.
