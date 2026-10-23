@@ -20,7 +20,9 @@ use super::fake_scryfall::FakeScryfall;
 /// No throttling, so tests run fast; the fake's own interval checks still apply.
 pub const NO_LIMITS: RateLimits = RateLimits {
     search: Duration::ZERO,
+    manifest: Duration::ZERO,
     other: Duration::ZERO,
+    files: Duration::ZERO,
     rate_limited_pause: Duration::from_millis(50),
 };
 
@@ -49,23 +51,29 @@ impl Harness {
     pub async fn start_with_config(cards: Vec<Value>, page_size: usize, config: Config) -> Self {
         let (server, fake) = FakeScryfall::start(cards).await;
         fake.set_page_size(page_size);
-        let base_url = server.uri();
-        Self::assemble(server, fake, &base_url, config)
+        let client = fake.client(NO_LIMITS);
+        Self::assemble(server, fake, client, config)
     }
 
     /// Starts an app whose search source is an address nothing listens on.
     pub async fn start_unreachable() -> Self {
         let (server, fake) = FakeScryfall::start(Vec::new()).await;
-        Self::assemble(server, fake, "http://127.0.0.1:9", Config::default())
+        let client = FakeScryfall::client_at("http://127.0.0.1:9", NO_LIMITS);
+        Self::assemble(server, fake, client, Config::default())
     }
 
-    fn assemble(server: MockServer, fake: FakeScryfall, base_url: &str, config: Config) -> Self {
-        let client = ScryfallClient::with_base_url(base_url.parse().unwrap(), NO_LIMITS).unwrap();
+    fn assemble(
+        server: MockServer,
+        fake: FakeScryfall,
+        client: ScryfallClient,
+        config: Config,
+    ) -> Self {
         let (events, background) = tokio::sync::mpsc::unbounded_channel();
         let api = Arc::new(ApiSearch::new(client));
         let services = Services {
             search: api.clone(),
-            rulings: api,
+            rulings: api.clone(),
+            images: api,
             events,
         };
         let mut app = App::with_services(config, services);

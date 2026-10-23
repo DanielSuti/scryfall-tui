@@ -32,6 +32,8 @@ pub struct Theme {
     pub error: Style,
     /// Secondary text, such as the base terms of the search bar.
     pub dim: Style,
+    /// A card's flavor text in the detail: italic, as printed on cards.
+    pub flavor: Style,
     /// The text that `/` matches, as yazi's `find_keyword`.
     pub find_keyword: Style,
     /// The position of the current line among the matching lines, such as `[2/9]`: a badge
@@ -59,6 +61,7 @@ impl Default for Theme {
             info: Style::new(),
             error: Style::new().fg(Color::Red),
             dim: Style::new().add_modifier(Modifier::DIM),
+            flavor: Style::new().add_modifier(Modifier::ITALIC),
             find_keyword: Style::new().fg(Color::Yellow).add_modifier(
                 Modifier::BOLD
                     .union(Modifier::ITALIC)
@@ -127,6 +130,7 @@ mod tests {
             ("info", t.info),
             ("error", t.error),
             ("dim", t.dim),
+            ("flavor", t.flavor),
             ("find_keyword", t.find_keyword),
             ("find_position", t.find_position),
             ("flash_backdrop", t.flash_backdrop),

@@ -4,7 +4,7 @@ Ideas and planned work outside the current release. Nothing here is scheduled un
 
 ## Ideas
 - Lazygit-style screen modes on `+` and `_`. These keys are reserved.
-- Proper double-faced card support for each layout: transform, modal double-faced, adventure, prepared and others.
+- Proper double-faced card support for each layout: transform, modal double-faced, adventure, prepared and others, including the back face's image.
 - Prices, set, collector number, rarity and artist in the detail view.
 - A vim-style `:` command line.
 - `?` for backward search, as in vim, tig and yazi.
@@ -12,7 +12,6 @@ Ideas and planned work outside the current release. Nothing here is scheduled un
 - A "what changed since the last update" report.
 - Manifest-based incremental updates.
 - Offline rulings in the detail.
-- Card images through the kitty or sixel protocols.
 - `default_cards` printings for collecting and image previews.
 - Name autocomplete in the search bar.
 - More sort orders and unique options in search.

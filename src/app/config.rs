@@ -12,9 +12,9 @@ use thiserror::Error;
 /// joke cards.
 pub const DEFAULT_BASE: &str = "game:paper -is:funny";
 /// Pages loaded per batch when `search.max_pages` is not set.
-pub const DEFAULT_MAX_PAGES: NonZeroU32 = NonZeroU32::new(6).expect("non-zero");
+pub const DEFAULT_MAX_PAGES: NonZeroU32 = NonZeroU32::new(4).expect("non-zero");
 /// History entries kept when `history.max_entries` is not set.
-pub const DEFAULT_MAX_ENTRIES: NonZeroUsize = NonZeroUsize::new(100).expect("non-zero");
+pub const DEFAULT_MAX_ENTRIES: NonZeroUsize = NonZeroUsize::new(40).expect("non-zero");
 /// Formats whose legality the detail view shows when `detail.formats` is not set.
 pub const DEFAULT_FORMATS: &[&str] = &[
     "standard",
@@ -28,9 +28,9 @@ pub const DEFAULT_FORMATS: &[&str] = &[
     "timeless",
 ];
 
-/// How long the cursor rests on a card before its rulings are fetched in `auto` mode, when
-/// `detail.rulings.pause_ms` is not set.
-pub const DEFAULT_RULINGS_PAUSE_MS: u64 = 300;
+/// How long the cursor rests on a card before its rulings or image are fetched in `auto` mode,
+/// when `pause_ms` is not set.
+pub const DEFAULT_PAUSE_MS: u64 = 50;
 
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
@@ -86,54 +86,76 @@ pub struct DetailConfig {
     /// Format names whose legality the detail view shows, in this order. An empty list hides
     /// the legalities.
     pub formats: Vec<String>,
-    /// `[detail.rulings]`
-    pub rulings: RulingsConfig,
+    /// `[detail.rulings]`: when the card's rulings are fetched.
+    pub rulings: LoadConfig,
+    /// `[detail.images]`: when the card's image is fetched. Images are shown only in terminals
+    /// with a graphics protocol.
+    pub images: LoadConfig,
 }
 
 impl Default for DetailConfig {
     fn default() -> Self {
         Self {
             formats: DEFAULT_FORMATS.iter().map(|f| (*f).to_owned()).collect(),
-            rulings: RulingsConfig::default(),
+            rulings: LoadConfig::default(),
+            images: LoadConfig::default(),
         }
     }
 }
 
-/// When the detail fetches the rulings of the card it shows.
+/// When one view of the detail loads data beyond the card itself, such as its rulings.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
 #[serde(rename_all = "snake_case")]
-pub enum RulingsMode {
-    /// In the split and the full detail, once the cursor has rested on the card for
-    /// `pause_ms`.
+pub enum LoadMode {
+    /// Once the cursor has rested on the card for `pause_ms`.
     #[default]
     Auto,
-    /// Only in the full detail, as soon as it opens.
-    FullDetail,
+    /// Only when `L` is pressed. Data already loaded shows without it.
+    Trigger,
+    /// Never. The view doesn't show the data, even when it was loaded in the other view.
+    Never,
 }
 
-/// The `[detail.rulings]` table.
+/// A table saying when the detail loads one kind of data, in the split and in the full detail.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-pub struct RulingsConfig {
-    /// When rulings are fetched.
-    pub mode: RulingsMode,
-    /// In `auto` mode, how long the cursor rests on a card before its rulings are fetched, in
-    /// milliseconds. 0 fetches them at once.
+pub struct LoadConfig {
+    /// When the data is loaded in the split.
+    pub split: LoadMode,
+    /// When the data is loaded in the full detail.
+    pub full_detail: LoadMode,
+    /// In `auto` mode, how long the cursor rests on a card before the data is fetched, in
+    /// milliseconds. 0 fetches it at once.
     pub pause_ms: u64,
 }
 
-impl RulingsConfig {
+impl LoadConfig {
+    /// Returns the mode of the full detail when `full_detail` is true, else of the split.
+    pub fn mode_in(&self, full_detail: bool) -> LoadMode {
+        if full_detail {
+            self.full_detail
+        } else {
+            self.split
+        }
+    }
+
+    /// Returns true when neither view ever loads the data.
+    pub fn is_never(&self) -> bool {
+        self.split == LoadMode::Never && self.full_detail == LoadMode::Never
+    }
+
     /// Returns `pause_ms` as a duration.
     pub fn pause(&self) -> Duration {
         Duration::from_millis(self.pause_ms)
     }
 }
 
-impl Default for RulingsConfig {
+impl Default for LoadConfig {
     fn default() -> Self {
         Self {
-            mode: RulingsMode::Auto,
-            pause_ms: DEFAULT_RULINGS_PAUSE_MS,
+            split: LoadMode::Trigger,
+            full_detail: LoadMode::Auto,
+            pause_ms: DEFAULT_PAUSE_MS,
         }
     }
 }
@@ -222,13 +244,20 @@ mod tests {
         let missing = Config::load(Path::new("/nonexistent/scry/config.toml")).unwrap();
         assert_eq!(missing, Config::default());
         assert_eq!(parse("").unwrap(), Config::default());
-        assert_eq!(Config::default().search.max_pages.get(), 6);
+        assert_eq!(Config::default().search.max_pages.get(), 4);
         assert_eq!(Config::default().search.base, "game:paper -is:funny");
-        assert_eq!(Config::default().history.max_entries.get(), 100);
+        assert_eq!(Config::default().history.max_entries.get(), 40);
         assert_eq!(Config::default().detail.formats.len(), 9);
-        let rulings = Config::default().detail.rulings;
-        assert_eq!(rulings.mode, RulingsMode::Auto);
-        assert_eq!(rulings.pause(), Duration::from_millis(300));
+        for load in [
+            Config::default().detail.rulings,
+            Config::default().detail.images,
+        ] {
+            assert_eq!(
+                (load.split, load.full_detail),
+                (LoadMode::Trigger, LoadMode::Auto)
+            );
+            assert_eq!(load.pause(), Duration::from_millis(50));
+        }
     }
 
     #[test]
@@ -248,14 +277,30 @@ mod tests {
         assert_eq!(custom.search.base, "f:commander");
         assert_eq!(config.history.max_entries.get(), 5);
         assert_eq!(config.detail.formats, ["modern"]);
-        let rulings = parse("[detail.rulings]\nmode = \"full_detail\"\npause_ms = 0").unwrap();
-        assert_eq!(rulings.detail.rulings.mode, RulingsMode::FullDetail);
-        assert_eq!(rulings.detail.rulings.pause(), Duration::ZERO);
+        let rulings = parse("[detail.rulings]\nsplit = \"never\"\npause_ms = 0").unwrap();
+        let load = &rulings.detail.rulings;
+        assert_eq!(
+            (load.split, load.full_detail),
+            (LoadMode::Never, LoadMode::Auto)
+        );
+        assert_eq!(load.mode_in(false), LoadMode::Never);
+        assert_eq!(load.mode_in(true), LoadMode::Auto);
+        assert!(!load.is_never());
+        assert_eq!(load.pause(), Duration::ZERO);
         assert_eq!(
             rulings.detail.formats.len(),
             9,
             "the formats keep their default"
         );
+        let images =
+            parse("[detail.images]\nsplit = \"never\"\nfull_detail = \"never\"\npause_ms = 50")
+                .unwrap();
+        assert!(images.detail.images.is_never());
+        assert_eq!(images.detail.images.pause(), Duration::from_millis(50));
+        assert_eq!(images.detail.rulings, LoadConfig::default());
+        let trigger = parse("[detail.images]\nsplit = \"trigger\"").unwrap();
+        assert_eq!(trigger.detail.images.mode_in(false), LoadMode::Trigger);
+        assert!(!trigger.detail.images.is_never());
     }
 
     #[test]
@@ -269,9 +314,15 @@ mod tests {
             ("[search]\nbase = 3", "base"),
             ("[search]\nmax_page = 2", "max_page"),
             ("colour = true", "colour"),
-            ("[detail.rulings]\nmode = \"split\"", "full_detail"),
+            ("[detail.rulings]\nsplit = \"sometimes\"", "never"),
+            ("[detail.rulings]\nfull_detail = \"split\"", "auto"),
+            ("[detail.rulings]\nmode = \"auto\"", "mode"),
             ("[detail.rulings]\npause_ms = -1", "pause_ms"),
             ("[detail.rulings]\ndelay = 1", "delay"),
+            ("[detail.images]\nsplit = \"full_detail\"", "never"),
+            ("[detail.images]\nsplit = \"full_detail\"", "trigger"),
+            ("[detail.images]\npause_ms = -1", "pause_ms"),
+            ("[detail.images]\nsize = \"large\"", "size"),
         ] {
             let err = parse(text).unwrap_err().to_string();
             assert!(err.contains(key), "{text:?} gave {err}");

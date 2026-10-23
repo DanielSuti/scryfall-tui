@@ -33,7 +33,8 @@ pub fn parse_card(json: &str) -> Result<Card, ParseError> {
 }
 
 /// Converts a Card object. A multi-faced card takes every face from `card_faces`; any other
-/// card becomes one face from its top-level fields. An empty mana cost becomes `None`.
+/// card becomes one face from its top-level fields. An empty mana cost becomes `None`. The
+/// image is the card's `normal` image, or the first face's on cards with one per face.
 ///
 /// # Errors
 /// Returns [`ParseError::Legality`] for an unknown legality status.
@@ -51,6 +52,15 @@ pub fn card_from_wire(wire: WireCard) -> Result<Card, ParseError> {
                 })
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let image_url = wire.image_uris.and_then(|uris| uris.normal).or_else(|| {
+        wire.card_faces
+            .as_ref()?
+            .first()?
+            .image_uris
+            .as_ref()?
+            .normal
+            .clone()
+    });
     let faces = match wire.card_faces {
         Some(faces) if !faces.is_empty() => faces.into_iter().map(face_from_wire).collect(),
         _ => vec![Face {
@@ -71,7 +81,8 @@ pub fn card_from_wire(wire: WireCard) -> Result<Card, ParseError> {
         wire.layout,
         faces,
         Legalities::new(legalities),
-    ))
+    )
+    .with_image_url(image_url))
 }
 
 fn face_from_wire(face: WireFace) -> Face {
@@ -197,6 +208,24 @@ mod tests {
         let delver = fixture("transform_delver");
         assert_eq!(delver.faces()[1].stats().as_deref(), Some("3/2"));
         assert_eq!(delver.layout(), "transform");
+    }
+
+    #[test]
+    fn the_image_is_the_cards_or_its_front_faces() {
+        let glorybringer = fixture("normal_glorybringer");
+        let url = glorybringer.image_url().unwrap();
+        assert!(
+            url.starts_with("https://cards.scryfall.io/normal/front/"),
+            "{url}"
+        );
+        let delver = fixture("transform_delver");
+        let url = delver.image_url().unwrap();
+        assert!(
+            url.starts_with("https://cards.scryfall.io/normal/front/"),
+            "{url}"
+        );
+        let json = r#"{"id":"x","layout":"token","name":"Spirit"}"#;
+        assert_eq!(parse_card(json).unwrap().image_url(), None);
     }
 
     #[test]

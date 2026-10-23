@@ -1,4 +1,4 @@
-//! Card search and rulings sources behind one contract each.
+//! Card search, rulings and image sources behind one contract each.
 
 use std::future::Future;
 use std::num::NonZeroU32;
@@ -25,6 +25,9 @@ pub enum SearchError {
     /// A page token was not issued by this search.
     #[error("invalid page token `{0}`")]
     InvalidPageToken(String),
+    /// An image URL is not a valid URL.
+    #[error("invalid image URL `{0}`")]
+    InvalidImageUrl(String),
 }
 
 impl SearchError {
@@ -235,6 +238,13 @@ pub trait CardRulings: Send + Sync {
     fn rulings<'a>(&'a self, card_id: &'a str) -> BoxFuture<'a, Result<Vec<Ruling>, SearchError>>;
 }
 
+/// A source of card images.
+pub trait CardImages: Send + Sync {
+    /// Fetches the image at `url`, a card's [`image_url`](crate::domain::card::Card::image_url),
+    /// and returns its encoded bytes, such as a JPEG file.
+    fn image<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, SearchError>>;
+}
+
 /// How many times one page request is retried after the source rate-limited it.
 pub const MAX_RATE_LIMIT_RETRIES: usize = 2;
 
@@ -260,7 +270,7 @@ pub enum BatchEvent {
 
 /// Loads up to `max_pages` pages from `start`, following each page's token, and reports each
 /// page, rate-limit pause and failure to `on_event`. A rate-limited request is retried up to
-/// [`MAX_RATE_LIMIT_RETRIES`] times; the source's own throttle does the waiting.
+/// [`MAX_RATE_LIMIT_RETRIES`] times; the source's request gateway does the waiting.
 ///
 /// Returns the token of the page after the batch, or `None` when the last page was loaded or
 /// a request failed.

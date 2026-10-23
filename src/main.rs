@@ -35,11 +35,12 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         None => History::new(config.history.max_entries),
     };
     let (events, background) = tokio::sync::mpsc::unbounded_channel();
-    // One client for both, so searches and rulings share its rate limits.
+    // One client for all, so searches, rulings and images share its rate limits.
     let api = Arc::new(ApiSearch::new(ScryfallClient::new()?));
     let services = Services {
         search: api.clone(),
-        rulings: api,
+        rulings: api.clone(),
+        images: api,
         events,
     };
     let mut app = App::with_services(config, services);

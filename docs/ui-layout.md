@@ -89,6 +89,54 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
  NORMAL │ [2] History │ 4 entries   ⏎ run · e edit · dd delete · <Esc> close
 ```
 
+**V6. The split with the card image**, in a terminal with a graphics protocol (`▓` marks the image). The image stands at the top right and the text wraps beside it, then takes the full width below it. The image scrolls with the text.
+```
+╭ [2] History ─────────────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━┓╭ [0] Detail ────────────────────────────────────╮
+│r                        3│┃ Dragon Mage           {3}{R}{R}┃│ Dragon Mage     {3}{R}{R}  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃ Glorybringer          {3}{R}{R}┃│ Creature — Dragon     4/4  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃ Shivan Dragon         {3}{R}{R}┃│                            ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ Flying, haste              ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ You may exert this         ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ creature as it attacks.    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ When you do, it deals 4    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ damage to target           ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ non-Dragon creature an     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ opponent controls. (An     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ exerted creature won't     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ untap during your next     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ untap step.)               ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│                                                │
+│                          │┃                                ┃│ What the initiates face in the final trial is  │
+│                          │┃                                ┃│ completely at Hazoret's discretion.            │
+│                          │┃                                ┃│                                                │
+│                          │┃                                ┃│ standard   not legal                           │
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
+```
+
+**V7. The full detail with the card image** on the left at the panel's height, as on scryfall.com. The text scrolls right of it.
+```
+╭ [2] History ─────────────╮┏ [3] Detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│r                        3│┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   Glorybringer                                {3}{R}{R}┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   Creature — Dragon                                 4/4┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   Flying, haste                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   You may exert this creature as it attacks. When you  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   do, it deals 4 damage to target non-Dragon creature  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   an opponent controls. (An exerted creature won't     ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   untap during your next untap step.)                  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   What the initiates face in the final trial is        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   completely at Hazoret's discretion.                  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   standard   not legal    historic   legal             ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   pioneer    legal        alchemy    not legal         ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   modern     legal        brawl      legal             ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   commander  legal        timeless   legal             ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   legacy     legal                                     ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
 **Double-faced rows**
 ```
  Delver of Secrets // Insectile Aberration   {U} // —             Creature // Creature
@@ -127,6 +175,7 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 | | `dd` | Delete the entry. |
 | Results | `j`/`k`, `gg`/`G`, `<C-d>`/`<C-u>`, or `↓`/`↑`, `Home`/`End`, `PageDown`/`PageUp` | Move. Reaching the last loaded row loads the next batch. |
 | | `d`, `<CR>`, `q` | As in the transition table. |
+| Split and full detail | `L` | Load the shown card's rulings and image now, in the views not set to `never`, skipping the `auto` pause. Says `Nothing to load` when everything is there. |
 | Full detail | `j`/`k` or `↓`/`↑` | Scroll. |
 | | `J`/`K` | Previous or next card. |
 | | `<CR>`, `q` | As in the transition table. |
@@ -178,7 +227,7 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 - **Search bar** shows the query as typed. When `search.base` is set, its terms appear dimmed on the right of the border as `+ game:paper -is:funny`, because every search adds them.
 
 - **Results rows** show name, mana cost and card types. Supertypes and subtypes are left out. Double-faced cards show both faces joined with ` // `, and a face with no mana cost shows `—`.
-- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`, then the rulings. Each ruling's date stands in a column left of its text, or above it below 36 columns:
+- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, the flavor text in italics as printed on cards, then the legalities for the formats in `detail.formats`, then the rulings. Each ruling's date stands in a column left of its text, or above it below 36 columns:
 
   ```
   Rulings (5)
@@ -186,5 +235,8 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
               an effect allows you to do so.
   ```
 
-  Rulings take one Scryfall request per card and are kept for the session; printings of one card share them. With `detail.rulings.mode = "auto"` they are fetched in the split and the full detail once the cursor has rested on the card for `detail.rulings.pause_ms`, so holding `j` doesn't send a request per card. With `"full_detail"` they are fetched only in the full detail, as soon as it opens, and the split shows them only when they were already fetched. Meanwhile the detail says `Rulings: loading...`, a card without rulings says `No rulings`, and a failure shows its message; the failed fetch is retried when the card is shown again.
+  Rulings take one Scryfall request per card and are kept for the session; printings of one card share them. `detail.rulings` sets each view on its own: `split` and `full_detail`. In `"auto"` they are fetched once the cursor has rested on the card for `pause_ms`, so holding `j` or `J` doesn't send a request per card. In `"trigger"` they are fetched only when `L` is pressed, and until then the section says `Rulings: L to load`; rulings already fetched show without it. In `"never"` they are not fetched and the view has no rulings section, even for rulings the other view already fetched. `L` also fetches at once in `"auto"`, without waiting for the pause. Meanwhile the detail says `Rulings: loading...`, a card without rulings says `No rulings`, and a failure shows its message; the failed fetch is retried when the card is shown again.
+- **Card image.** In a terminal with a graphics protocol the detail shows the card's front-face image. Kitty and Ghostty use kitty's unicode placeholders, foot and Windows Terminal sixel, iTerm2 and WezTerm iTerm2's inline images, also inside tmux. In the split (V6) it takes two fifths of the detail's width at the top right; in the full detail (V7) the panel's height on the left, at most half its width. Its size follows the card's 488×680 pixels and the terminal's cell size. The detail has no image when the text beside it would be narrower than 24 columns in the split or 30 in the full detail, and none in a terminal without a graphics protocol, such as Alacritty.
+
+  `detail.images` decides when images are fetched, per view, as `detail.rulings` does for rulings: `"auto"` once the cursor has rested for `pause_ms`, `"trigger"` when `L` is pressed, and `"never"`, which leaves the view without an image box, the text taking the full width. On `"trigger"` the view has no image box until `L`, so the text keeps the full width; an image already loaded shows without it. Meanwhile the box says `Loading image...`, and a failure shows `Image:` and its message, retried when the card is shown again. The last 50 images are kept for the session. Each image is scaled into its box off the main thread, again when the box changes size. The which-key popup, the pickers and the history overlay hide the image while they are open, as Yazi hides its preview under popups, because sixel and iTerm2 images would show through them.
 - **History** shows each query and its result count, newest first.

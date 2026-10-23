@@ -307,11 +307,14 @@ fn hints_follow_the_main_view() {
         ["d detail", "⏎ split", "q quit"]
     );
     press(&mut app, "<CR>");
-    assert_eq!(app.hints_for(app.focused_scope()), ["d detail", "q back"]);
+    assert_eq!(
+        app.hints_for(app.focused_scope()),
+        ["d detail", "q back", "L load"]
+    );
     press(&mut app, "d");
     assert_eq!(
         app.hints_for(app.focused_scope()),
-        ["⏎ split", "q back", "J next", "K prev"]
+        ["⏎ split", "q back", "J next", "K prev", "L load"]
     );
 }
 

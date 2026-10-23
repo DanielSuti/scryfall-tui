@@ -1,8 +1,10 @@
 //! Application state and event handling.
 
 mod commands;
+mod detail_load;
 mod flash;
 mod history;
+mod images;
 pub mod registrar;
 mod rulings;
 mod search;
@@ -16,8 +18,9 @@ use std::time::Duration;
 
 use crossterm::event::{KeyEvent, KeyEventKind};
 use ratatui::Frame;
-use ratatui::layout::Rect;
+use ratatui::layout::{Rect, Size};
 use ratatui::widgets::{Clear, Paragraph, Widget};
+use ratatui_image::picker::Picker as ImagePicker;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
 
@@ -28,7 +31,7 @@ use crate::app::results_cache::ResultsCache;
 use crate::app::selection::Selection;
 use crate::domain::ruling::{Ruling, RulingsState};
 use crate::domain::search_results::{SearchPage, SearchResults};
-use crate::search::{CardRulings, CardSearch, SearchRequest, SortOrder};
+use crate::search::{CardImages, CardRulings, CardSearch, SearchRequest, SortOrder};
 use crate::tui::keymap::bindings::Keymap;
 use crate::tui::keymap::dispatcher::{Dispatch, Dispatcher};
 use crate::tui::keymap::mode::Mode;
@@ -92,16 +95,35 @@ pub enum AppEvent {
         /// The rulings, or why they could not be fetched.
         result: Result<Vec<Ruling>, String>,
     },
+    /// The image fetched for the card with printing id `card_id`.
+    ImageFetched {
+        /// The card's printing id.
+        card_id: String,
+        /// The image's encoded bytes, or why it could not be fetched.
+        result: Result<Vec<u8>, String>,
+    },
+    /// The image of the card with printing id `card_id`, encoded for a box of `size` cells.
+    ImageEncoded {
+        /// The card's printing id.
+        card_id: String,
+        /// The box's width and height in cells.
+        size: Size,
+        /// The encoded image, or why the image could not be decoded or encoded.
+        result: Result<images::EncodedImage, String>,
+    },
 }
 
-/// What the application needs from outside: a search source, a rulings source, and a channel
-/// on which background tasks send their [`AppEvent`]s back to the event loop.
+/// What the application needs from outside: a search source, a rulings source, an image
+/// source, and a channel on which background tasks send their [`AppEvent`]s back to the event
+/// loop.
 #[derive(Clone)]
 pub struct Services {
     /// The card search.
     pub search: Arc<dyn CardSearch>,
     /// The rulings source.
     pub rulings: Arc<dyn CardRulings>,
+    /// The card image source.
+    pub images: Arc<dyn CardImages>,
     /// Where background tasks send their events.
     pub events: UnboundedSender<AppEvent>,
 }
@@ -118,6 +140,7 @@ pub struct App {
     theme: Theme,
     config: Config,
     services: Option<Services>,
+    image_picker: Option<ImagePicker>,
     mode: Mode,
     quit: bool,
     commands: CommandRegistry<App>,
@@ -134,8 +157,9 @@ pub struct App {
     format_warning: Option<String>,
     formats_checked: bool,
     rulings: HashMap<String, RulingsState>,
-    rulings_shown: Option<String>,
-    pending_rulings: Option<rulings::PendingRulings>,
+    rulings_schedule: detail_load::LoadSchedule,
+    images: images::CardImages,
+    image_schedule: detail_load::LoadSchedule,
     history: History,
     history_path: Option<std::path::PathBuf>,
     history_view: HistoryView,
@@ -178,6 +202,7 @@ impl App {
             theme: Theme::default(),
             config,
             services: None,
+            image_picker: None,
             mode: Mode::Normal,
             quit: false,
             commands: CommandRegistry::new(),
@@ -194,8 +219,9 @@ impl App {
             format_warning: None,
             formats_checked: false,
             rulings: HashMap::new(),
-            rulings_shown: None,
-            pending_rulings: None,
+            rulings_schedule: detail_load::LoadSchedule::default(),
+            images: images::CardImages::default(),
+            image_schedule: detail_load::LoadSchedule::default(),
             history: History::new(max_history),
             history_path: None,
             history_view: HistoryView::new(),
@@ -223,6 +249,12 @@ impl App {
         let mut app = Self::with_config(config);
         app.services = Some(services);
         app
+    }
+
+    /// Sets how card images are drawn: the terminal's graphics protocol and cell size, or
+    /// `None` when the terminal can't draw images, which hides them.
+    pub fn set_image_picker(&mut self, picker: Option<ImagePicker>) {
+        self.image_picker = picker;
     }
 
     /// Returns the configuration the app was started with.
@@ -296,14 +328,17 @@ impl App {
         let event_kind = match event {
             AppEvent::Key(_) => EventKind::Key,
             AppEvent::Tick => EventKind::Tick,
-            AppEvent::Resize(..) | AppEvent::Search { .. } | AppEvent::Rulings { .. } => {
-                EventKind::Change
-            }
+            AppEvent::Resize(..)
+            | AppEvent::Search { .. }
+            | AppEvent::Rulings { .. }
+            | AppEvent::ImageFetched { .. }
+            | AppEvent::ImageEncoded { .. } => EventKind::Change,
         };
         if event_kind == EventKind::Tick {
             let now = Instant::now();
             self.which_key.tick(now);
             self.start_due_rulings(now);
+            self.start_due_image(now);
             self.sync_detail();
             return;
         }
@@ -313,6 +348,14 @@ impl App {
             AppEvent::Resize(width, height) => self.area = Rect::new(0, 0, width, height),
             AppEvent::Search { request, update } => self.handle_search_update(&request, update),
             AppEvent::Rulings { key, result } => self.handle_rulings(key, result),
+            AppEvent::ImageFetched { card_id, result } => {
+                self.handle_image_fetched(card_id, result);
+            }
+            AppEvent::ImageEncoded {
+                card_id,
+                size,
+                result,
+            } => self.handle_image_encoded(card_id, size, result),
         }
         self.sync_detail();
         if !matches!(event_kind, EventKind::Key) {
@@ -330,20 +373,24 @@ impl App {
         }
     }
 
-    /// Formats the selected card and its rulings for the detail's current width, and prepares
-    /// the rulings of the card the detail shows.
+    /// Formats the selected card, its rulings and its image box for the detail's current
+    /// size, and prepares the rulings and the image of the card the detail shows.
     fn sync_detail(&mut self) {
         let Some(rect) = self.detail_rect(&self.areas()) else {
             self.schedule_rulings(None);
+            self.prepare_image(None, None);
             return;
         };
         let width = usize::from(rect.width.saturating_sub(3));
+        let inner = Size::new(rect.width.saturating_sub(2), rect.height.saturating_sub(2));
         let card = self.selection().map(|s| s.card.clone());
         self.schedule_rulings(card.as_ref());
-        let rulings = card.as_ref().and_then(|c| self.rulings_for(c)).cloned();
+        let rulings = card.as_ref().and_then(|c| self.rulings_shown(c));
+        let image_box = card.as_ref().and_then(|c| self.image_box(c, inner));
+        let image = self.prepare_image(card.as_ref(), image_box);
         let formats = self.config.detail.formats.clone();
         self.detail
-            .show(card.as_ref(), &formats, rulings.as_ref(), width);
+            .show(card.as_ref(), &formats, rulings.as_ref(), image, width);
     }
 
     /// Checks `detail.formats` against the formats the first loaded card reports.
@@ -416,14 +463,14 @@ impl App {
     /// Returns when the app next needs an [`AppEvent::Tick`], or `None` when it waits only
     /// for other events.
     pub fn next_deadline(&self) -> Option<Instant> {
-        let rulings = self
-            .pending_rulings
-            .as_ref()
-            .map(rulings::PendingRulings::due);
-        match (self.which_key.deadline(), rulings) {
-            (Some(a), Some(b)) => Some(a.min(b)),
-            (a, b) => a.or(b),
-        }
+        [
+            self.which_key.deadline(),
+            self.rulings_schedule.deadline(),
+            self.image_schedule.deadline(),
+        ]
+        .into_iter()
+        .flatten()
+        .min()
     }
 
     /// Returns the entries of the which-key popup, with case twins on one line, or an empty
@@ -660,10 +707,14 @@ impl App {
         let block = panel_block(self.title(Panel::Main), focused(Panel::Main), &self.theme);
         let inner = block.inner(areas.main);
         frame.render_widget(block, areas.main);
+        let entries = self.which_key_entries();
+        // Popups drawn over the detail hide its image.
+        let covered = self.picker.is_some() || !entries.is_empty() || areas.overlay.is_some();
         if self.main_view == MainView::FullDetail {
             let search = self.pane_search_in(Panel::Main);
             self.detail
                 .render(inner, frame.buffer_mut(), &self.theme, search.as_ref());
+            self.render_card_image(frame, inner, covered);
         } else {
             let search = self.pane_search_in(Panel::Main);
             self.results.render(
@@ -685,6 +736,7 @@ impl App {
             let search = self.pane_search_in(Panel::Detail);
             self.detail
                 .render(inner, frame.buffer_mut(), &self.theme, search.as_ref());
+            self.render_card_image(frame, inner, covered);
         }
         if let Some(overlay) = areas.overlay {
             frame.render_widget(Clear, overlay);
@@ -721,7 +773,6 @@ impl App {
         if let Some(picker) = &self.picker {
             picker.render(frame, frame.area(), &self.theme);
         }
-        let entries = self.which_key_entries();
         if !entries.is_empty() {
             let body = Rect {
                 height: areas.status.y.saturating_sub(areas.search.y),

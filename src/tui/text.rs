@@ -42,21 +42,28 @@ pub fn truncate(text: &str, width: usize) -> String {
 /// Breaks `text` into lines of at most `width` columns. Existing line breaks are kept, words
 /// are moved to the next line whole, and a word longer than `width` is cut with [`truncate`].
 pub fn wrap(text: &str, width: usize) -> Vec<String> {
-    let width = width.max(1);
+    wrap_with(text, 0, |_| width)
+}
+
+/// Breaks `text` into lines as [`wrap`] does, where line `n` of the result is at most
+/// `width_at(first_line + n)` columns wide, so text can flow past a box beside its first
+/// lines.
+pub fn wrap_with(text: &str, first_line: usize, width_at: impl Fn(usize) -> usize) -> Vec<String> {
     let mut lines = Vec::new();
     for paragraph in text.split('\n') {
         let mut line = String::new();
         for word in paragraph.split_whitespace() {
-            let word = truncate(word, width);
-            let needed =
-                display_width(&line) + usize::from(!line.is_empty()) + display_width(&word);
-            if !line.is_empty() && needed > width {
+            let mut width = width_at(first_line + lines.len()).max(1);
+            if !line.is_empty()
+                && display_width(&line) + 1 + display_width(&truncate(word, width)) > width
+            {
                 lines.push(std::mem::take(&mut line));
+                width = width_at(first_line + lines.len()).max(1);
             }
             if !line.is_empty() {
                 line.push(' ');
             }
-            line.push_str(&word);
+            line.push_str(&truncate(word, width));
         }
         lines.push(line);
     }
@@ -106,6 +113,25 @@ mod tests {
         for line in wrap("one two three four five six seven", 9) {
             assert!(display_width(&line) <= 9, "{line}");
         }
+    }
+
+    #[test]
+    fn wrap_with_changes_width_where_asked() {
+        let narrow_first_two = |line: usize| if line < 2 { 8 } else { 20 };
+        assert_eq!(
+            wrap_with("one two three four five six seven", 0, narrow_first_two),
+            ["one two", "three", "four five six seven"]
+        );
+        assert_eq!(
+            wrap_with("one two three four five", 1, narrow_first_two),
+            ["one two", "three four five"],
+            "the count starts at first_line"
+        );
+        assert_eq!(
+            wrap_with("Abracadabrantesque Abracadabrantesque", 1, narrow_first_two),
+            ["Abrac...", "Abracadabrantesque"],
+            "a word cut on a narrow line is whole on a wide one"
+        );
     }
 
     #[test]

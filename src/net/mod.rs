@@ -1,3 +1,3 @@
 //! Service-neutral networking helpers.
 
-pub mod throttle;
+pub mod schedule;

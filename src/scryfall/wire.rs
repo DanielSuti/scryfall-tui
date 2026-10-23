@@ -37,6 +37,15 @@ pub struct WireCard {
     pub legalities: BTreeMap<String, String>,
     /// Faces of a multi-faced card.
     pub card_faces: Option<Vec<WireFace>>,
+    /// Images of the card. Missing on cards whose faces carry their own.
+    pub image_uris: Option<WireImageUris>,
+}
+
+/// The image URIs of a card or a face. See <https://scryfall.com/docs/api/images>.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WireImageUris {
+    /// The 488×680 JPEG.
+    pub normal: Option<String>,
 }
 
 /// A Card Face object.
@@ -60,6 +69,8 @@ pub struct WireFace {
     pub loyalty: Option<String>,
     /// Defense.
     pub defense: Option<String>,
+    /// Images of the face, on cards with one image per face such as transform cards.
+    pub image_uris: Option<WireImageUris>,
 }
 
 /// A List object holding cards.

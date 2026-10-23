@@ -39,6 +39,15 @@ pub enum ScryfallError {
         /// What failed to decode.
         message: String,
     },
+    /// The request was for a host that isn't Scryfall's, so it was not sent.
+    #[error("refusing to send a request to {host}, which is not a Scryfall server")]
+    Refused {
+        /// The host asked for.
+        host: String,
+    },
+    /// The request gateway no longer runs, so nothing can be sent.
+    #[error("the request gateway has stopped")]
+    GatewayStopped,
     /// A card in the response could not be converted.
     #[error(transparent)]
     Parse(#[from] ParseError),

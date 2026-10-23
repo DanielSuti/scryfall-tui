@@ -15,7 +15,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use reqwest::Url;
-use scry::scryfall::client::{BASE_URL, RateLimits, ScryfallClient};
+use scry::scryfall::client::{ApiUrls, BASE_URL};
 use scry::search::api::{scryfall_dir, scryfall_order};
 use scry::search::{SortField, SortOrder};
 use serde::{Deserialize, Serialize};
@@ -86,8 +86,7 @@ pub fn request_key(url: &Url) -> String {
 
 /// Every request the recorded tests send, with the file name its answer is saved under.
 pub fn recorded_requests() -> Vec<(String, Url)> {
-    let client =
-        ScryfallClient::with_base_url(Url::parse(BASE_URL).unwrap(), RateLimits::SCRYFALL).unwrap();
+    let client = ApiUrls::new(Url::parse(BASE_URL).unwrap());
     let mut requests = vec![
         (
             "catalog_supertypes".to_owned(),

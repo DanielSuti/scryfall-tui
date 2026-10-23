@@ -1,4 +1,4 @@
-//! Search and rulings through the Scryfall API.
+//! Search, rulings and images through the Scryfall API.
 
 use reqwest::Url;
 
@@ -9,14 +9,15 @@ use crate::scryfall::error::ScryfallError;
 use crate::scryfall::parse::{card_from_wire, ruling_from_wire};
 use crate::scryfall::wire::WireCardList;
 use crate::search::{
-    BoxFuture, CardRulings, CardSearch, SearchError, SearchRequest, SortField, SortOrder,
+    BoxFuture, CardImages, CardRulings, CardSearch, SearchError, SearchRequest, SortField,
+    SortOrder,
 };
 
 /// Scryfall's error code for a search that matches nothing.
 const NOT_FOUND: &str = "not_found";
 
 /// Searches with Scryfall's full query syntax by sending the query to the API unchanged, and
-/// fetches rulings. Both go through one client, so they share its rate limits.
+/// fetches rulings and card images. All go through one client, so they share its rate limits.
 #[derive(Debug)]
 pub struct ApiSearch {
     client: ScryfallClient,
@@ -139,6 +140,15 @@ impl CardRulings for ApiSearch {
                 .get_rulings(self.client.rulings_url(card_id))
                 .await?;
             Ok(list.data.into_iter().map(ruling_from_wire).collect())
+        })
+    }
+}
+
+impl CardImages for ApiSearch {
+    fn image<'a>(&'a self, url: &'a str) -> BoxFuture<'a, Result<Vec<u8>, SearchError>> {
+        Box::pin(async move {
+            let url = Url::parse(url).map_err(|_| SearchError::InvalidImageUrl(url.to_owned()))?;
+            Ok(self.client.get_image(url).await?)
         })
     }
 }
