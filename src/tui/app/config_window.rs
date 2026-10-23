@@ -1,8 +1,14 @@
-//! The config window on `<leader>c`: settings change for the session as they are chosen.
+//! The config window on `<leader>c`: settings change for the session as they are chosen, and
+//! `<Enter>` saves them to the config file.
+
+use std::path::Path;
 
 use crossterm::event::{KeyCode, KeyEvent};
+use ratatui::Frame;
+use ratatui::layout::Rect;
 
 use crate::app::command::{CommandId, Scope};
+use crate::app::config_file;
 use crate::app::settings::{Setting, SettingError};
 use crate::tui::app::App;
 use crate::tui::app::registrar::{Registrar, RegistrationError, command};
@@ -18,8 +24,23 @@ pub const OPEN_CONFIG: CommandId = CommandId("config.open");
 pub const IMAGES_NEED_RESTART: &str =
     "Images show after a restart: the terminal was not asked for a graphics protocol at start-up";
 
+/// Shown when `<Enter>` finds nothing that differs from the config file.
+pub const NOTHING_TO_SAVE: &str = "Nothing to save: the settings match the config file";
+/// Shown when `<Enter>` has no config file to save to, which happens when the home directory
+/// is unknown.
+pub const NO_CONFIG_FILE: &str = "No config file location is known, so nothing was saved";
+
 /// The keys the window answers to, as the status line lists them.
-const HINTS: [&str; 4] = ["j/k move", "⇥ next value", "<Esc> keep", "q cancel"];
+const HINTS: [&str; 6] = [
+    "j/k move",
+    "⇥ next value",
+    "i/a edit",
+    "⏎ save",
+    "<Esc> keep",
+    "q cancel",
+];
+/// The keys that end typing a value.
+const EDITING_HINTS: [&str; 1] = ["⏎/<Esc> done"];
 
 pub(super) fn register(reg: &mut Registrar<'_>) -> Result<(), RegistrationError> {
     reg.add(
@@ -46,13 +67,31 @@ impl App {
     }
 
     /// Handles a key while the config window is open: `j`/`k` and the arrows move, Tab and
-    /// Shift-Tab cycle the selected setting's presets, `<Esc>` closes the window keeping the
-    /// changes for the session, and `q` closes it undoing them. Other keys do nothing.
+    /// Shift-Tab cycle the selected setting's presets, `i`/`I` and `a`/`A` start typing its
+    /// value at the start or the end, `<Enter>` saves the changes and closes the window,
+    /// `<Esc>` closes it keeping the changes for the session, and `q` closes it undoing them.
+    /// While a value is typed, `<Esc>` and `<Enter>` end the edit and other keys edit the
+    /// text. Other keys do nothing.
     pub(super) fn handle_config_key(&mut self, event: KeyEvent) {
         let Some(window) = self.config_window.as_mut() else {
             return;
         };
+        if let Some(input) = window.editing_mut() {
+            match event.code {
+                KeyCode::Esc | KeyCode::Enter => self.finish_typing(),
+                _ => {
+                    input.handle_key(event);
+                }
+            }
+            return;
+        }
         match event.code {
+            KeyCode::Char(c @ ('i' | 'I' | 'a' | 'A')) => {
+                let value = window.selected().value(&self.config);
+                window.start_editing(&value, matches!(c, 'a' | 'A'));
+                self.mode = Mode::Insert;
+            }
+            KeyCode::Enter => self.save_settings(),
             KeyCode::Char('j') | KeyCode::Down => window.move_by(1),
             KeyCode::Char('k') | KeyCode::Up => window.move_by(-1),
             KeyCode::Tab => self.cycle_setting(1),
@@ -60,6 +99,74 @@ impl App {
             KeyCode::Esc => self.config_window = None,
             KeyCode::Char('q') => self.cancel_config_window(),
             _ => {}
+        }
+    }
+
+    /// Applies the typed value to the selected setting and returns to the window's normal
+    /// mode. A value the setting refuses leaves it as it was, and the status line says why.
+    fn finish_typing(&mut self) {
+        self.mode = Mode::Normal;
+        let Some(window) = self.config_window.as_mut() else {
+            return;
+        };
+        let setting = window.selected();
+        let Some(text) = window.finish_editing() else {
+            return;
+        };
+        match self.apply_setting(setting, &text) {
+            Ok(()) => {
+                let value = setting.value(&self.config);
+                if let Some(window) = self.config_window.as_mut() {
+                    window.remember_typed(setting, value);
+                }
+            }
+            Err(err) => self.message = Some(StatusMessage::error(err.to_string())),
+        }
+    }
+
+    /// Saves every setting that differs from the config file into it, and closes the window.
+    /// A failure leaves the window open with the reason in the status line.
+    fn save_settings(&mut self) {
+        let changed: Vec<Setting> = Setting::ALL
+            .into_iter()
+            .filter(|s| s.value(&self.config) != s.value(&self.saved))
+            .collect();
+        if changed.is_empty() {
+            self.config_window = None;
+            self.message = Some(StatusMessage::info(NOTHING_TO_SAVE));
+            return;
+        }
+        let Some(path) = self.config_path.clone() else {
+            self.message = Some(StatusMessage::error(NO_CONFIG_FILE));
+            return;
+        };
+        match config_file::save(&path, &self.config, &changed) {
+            Ok(()) => {
+                self.saved = self.config.clone();
+                self.config_window = None;
+                let settings = if changed.len() == 1 {
+                    "setting"
+                } else {
+                    "settings"
+                };
+                self.message = Some(StatusMessage::info(format!(
+                    "Saved {} {settings} to {}",
+                    changed.len(),
+                    home_relative(&path)
+                )));
+            }
+            Err(err) => self.message = Some(StatusMessage::error(err.to_string())),
+        }
+    }
+
+    /// Draws the value being typed, with the terminal cursor, over the window drawn in
+    /// `body`.
+    pub(super) fn render_config_input(&self, frame: &mut Frame, body: Rect) {
+        let Some(window) = &self.config_window else {
+            return;
+        };
+        if let Some(input) = window.editing() {
+            input.render(frame, window.value_area(body, &self.config), true);
         }
     }
 
@@ -135,6 +242,22 @@ impl App {
 
     /// Returns the status-line hints while the config window is open.
     pub(super) fn config_hints(&self) -> Vec<String> {
-        HINTS.iter().map(|h| (*h).to_owned()).collect()
+        let typing = self
+            .config_window
+            .as_ref()
+            .is_some_and(|w| w.editing().is_some());
+        let hints: &[&str] = if typing { &EDITING_HINTS } else { &HINTS };
+        hints.iter().map(|h| (*h).to_owned()).collect()
+    }
+}
+
+/// Returns `path` with the home directory written `~`, as people write config paths.
+fn home_relative(path: &Path) -> String {
+    match etcetera::home_dir()
+        .ok()
+        .and_then(|home| path.strip_prefix(home).ok().map(Path::to_owned))
+    {
+        Some(rest) => format!("~/{}", rest.display()),
+        None => path.display().to_string(),
     }
 }

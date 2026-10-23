@@ -25,4 +25,4 @@ expression: h.screen()
 │                          │┃        ┃ Images in the full detail    auto                                       ┃
 │                          │┃        ┃ Images pause (ms)            50                                         ┃
 ╰──────────────────────────╯┗━━━━━━━━┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
- NORMAL  │ Config │ 1 changed                                   j/k move · ⇥ next value · <Esc> keep · q cancel
+ NORMAL  │ Config │ 1 changed               j/k move · ⇥ next value · i/a edit · ⏎ save · <Esc> keep · q cancel

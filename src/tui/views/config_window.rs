@@ -13,6 +13,7 @@ use crate::app::config::Config;
 use crate::app::settings::Setting;
 use crate::tui::text::{display_width, truncate};
 use crate::tui::theme::Theme;
+use crate::tui::widgets::query_input::QueryInput;
 
 /// The window's title.
 pub const CONFIG_TITLE: &str = "Config";
@@ -29,6 +30,15 @@ pub struct ConfigWindow {
     cursor: usize,
     opened_with: Config,
     typed: HashMap<Setting, String>,
+    editing: Option<QueryInput>,
+}
+
+/// Where the window's parts go in an area.
+struct Layout {
+    popup: Rect,
+    label_width: usize,
+    value_width: usize,
+    values: Vec<String>,
 }
 
 impl ConfigWindow {
@@ -43,6 +53,7 @@ impl ConfigWindow {
             cursor: 0,
             opened_with: config.clone(),
             typed,
+            editing: None,
         }
     }
 
@@ -75,16 +86,43 @@ impl ConfigWindow {
         }
     }
 
-    /// Draws the window in the bottom-right corner of `area`, with the values of `config`.
-    /// Values that differ from `saved`, the config file's, are marked with [`CHANGED_MARK`].
-    pub fn render(
-        &self,
-        area: Rect,
-        buf: &mut Buffer,
-        config: &Config,
-        saved: &Config,
-        theme: &Theme,
-    ) {
+    /// Starts editing the selected setting's value `value`, with the text cursor at its end
+    /// when `at_end` is true, else at its start.
+    pub fn start_editing(&mut self, value: &str, at_end: bool) {
+        let mut input = QueryInput::new();
+        input.set_value(value);
+        if !at_end {
+            input.set_cursor_at_column(0, MAX_VALUE_WIDTH);
+        }
+        self.editing = Some(input);
+    }
+
+    /// Returns the text being typed, while a value is edited.
+    pub fn editing(&self) -> Option<&QueryInput> {
+        self.editing.as_ref()
+    }
+
+    /// Returns the text being typed, to apply a key to it.
+    pub fn editing_mut(&mut self) -> Option<&mut QueryInput> {
+        self.editing.as_mut()
+    }
+
+    /// Stops editing and returns the typed text, or `None` when nothing was being edited.
+    pub fn finish_editing(&mut self) -> Option<String> {
+        self.editing.take().map(|input| input.value().to_owned())
+    }
+
+    /// Returns the cell row where the selected value is typed when the window is drawn into
+    /// `area` with the values of `config`.
+    pub fn value_area(&self, area: Rect, config: &Config) -> Rect {
+        let layout = self.layout(area, config);
+        let x = layout.popup.x + 2 + u16::try_from(layout.label_width + 2).unwrap_or(u16::MAX);
+        let y = layout.popup.y + 1 + u16::try_from(self.cursor).unwrap_or(u16::MAX);
+        let width = u16::try_from(layout.value_width).unwrap_or(u16::MAX);
+        Rect::new(x, y, width, 1).intersection(layout.popup)
+    }
+
+    fn layout(&self, area: Rect, config: &Config) -> Layout {
         let label_width = Setting::ALL
             .iter()
             .map(|s| display_width(s.label()))
@@ -97,7 +135,11 @@ impl ConfigWindow {
                 value => truncate(&value, MAX_VALUE_WIDTH),
             })
             .collect();
-        let value_width = values.iter().map(|v| display_width(v)).max().unwrap_or(0);
+        let mut value_width = values.iter().map(|v| display_width(v)).max().unwrap_or(0);
+        if self.editing.is_some() {
+            // Room to type; longer text scrolls.
+            value_width = value_width.max(MAX_VALUE_WIDTH);
+        }
         // A space each side of the label, two before the value, and the mark with its space.
         let width = label_width + value_width + 6;
         let width = u16::try_from(width + 2).unwrap_or(u16::MAX).min(area.width);
@@ -110,6 +152,30 @@ impl ConfigWindow {
             width,
             height,
         };
+        Layout {
+            popup,
+            label_width,
+            value_width,
+            values,
+        }
+    }
+
+    /// Draws the window in the bottom-right corner of `area`, with the values of `config`.
+    /// Values that differ from `saved`, the config file's, are marked with [`CHANGED_MARK`].
+    pub fn render(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        config: &Config,
+        saved: &Config,
+        theme: &Theme,
+    ) {
+        let Layout {
+            popup,
+            label_width,
+            value_width,
+            values,
+        } = self.layout(area, config);
         Clear.render(popup, buf);
         let block = Block::bordered()
             .border_type(BorderType::Thick)
@@ -125,6 +191,9 @@ impl ConfigWindow {
             }
             let changed = setting.value(config) != setting.value(saved);
             let mark = if changed { CHANGED_MARK } else { " " };
+            // The value being typed is drawn over this one, by the caller.
+            let editing = index == self.cursor && self.editing.is_some();
+            let value = if editing { "" } else { value.as_str() };
             let text = format!(
                 " {:label_width$}  {:value_width$} {mark}",
                 setting.label(),

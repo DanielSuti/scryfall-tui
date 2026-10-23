@@ -124,3 +124,158 @@ async fn renders_the_config_window() {
     h.press("<leader>cjjjj<Tab>");
     insta::assert_snapshot!(h.screen());
 }
+
+/// Returns a fresh config file path under the temp directory, named after `name`.
+fn config_path(name: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("scry-app-config-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    dir.join("scry").join("config.toml")
+}
+
+#[tokio::test]
+async fn a_typed_value_applies_and_an_invalid_one_is_refused() {
+    let mut h = start().await;
+    h.press("<leader>cjA");
+    assert_eq!(h.app.mode(), scry::tui::keymap::mode::Mode::Insert);
+    assert!(h.status_line().contains("INSERT"), "{}", h.status_line());
+    h.press("<BS>");
+    h.type_text("0");
+    h.press("<Esc>");
+    assert_eq!(h.app.mode(), scry::tui::keymap::mode::Mode::Normal);
+    assert_eq!(h.app.config().search.max_pages.get(), 4, "0 is refused");
+    assert!(
+        h.status_line()
+            .contains("Pages per batch must be a whole number of 1 or more"),
+        "{}",
+        h.status_line()
+    );
+    h.press("I");
+    h.type_text("1");
+    h.press("<CR>");
+    assert_eq!(h.app.config().search.max_pages.get(), 14);
+    assert!(
+        h.app.config_window().is_some(),
+        "<CR> while typing only ends the edit"
+    );
+    h.press("<Tab>");
+    assert_eq!(
+        h.app.config().search.max_pages.get(),
+        1,
+        "after a typed value the cycle starts again"
+    );
+    h.press("<S-Tab>");
+    assert_eq!(
+        h.app.config().search.max_pages.get(),
+        14,
+        "the typed value is in the cycle"
+    );
+}
+
+#[tokio::test]
+async fn typed_formats_change_the_legalities() {
+    let mut h = start().await;
+    assert!(
+        h.app
+            .detail_lines()
+            .iter()
+            .any(|l| l.starts_with("standard"))
+    );
+    h.press("<leader>cjjja<C-u>");
+    h.type_text("modern, legacy");
+    h.press("<Esc>");
+    assert_eq!(h.app.config().detail.formats, ["modern", "legacy"]);
+    let lines = h.app.detail_lines();
+    assert!(lines.iter().any(|l| l.starts_with("modern")), "{lines:#?}");
+    assert!(
+        !lines.iter().any(|l| l.starts_with("standard")),
+        "{lines:#?}"
+    );
+}
+
+#[tokio::test]
+async fn enter_creates_the_config_file_from_the_commented_defaults() {
+    let mut h = start().await;
+    let path = config_path("create");
+    h.app.set_config_path(Some(path.clone()));
+    h.press("<leader>cjjjj<Tab>");
+    assert!(!path.exists(), "nothing is written before <CR>");
+    h.press("<CR>");
+    assert!(h.app.config_window().is_none());
+    assert!(
+        h.status_line().contains("Saved 1 setting to"),
+        "{}",
+        h.status_line()
+    );
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        text.contains(
+            "# in the split: \"auto\", \"trigger\" (on L) or \"never\"\nsplit = \"never\"\n"
+        ),
+        "{text}"
+    );
+    let loaded = Config::load(&path).unwrap();
+    assert_eq!(loaded.detail.rulings.split, LoadMode::Never);
+    assert_eq!(
+        loaded.detail.images.split,
+        LoadMode::Trigger,
+        "the rest are defaults"
+    );
+    h.press("<leader>c");
+    assert!(
+        h.status_line().contains("no changes"),
+        "{}",
+        h.status_line()
+    );
+    h.press("<CR>");
+    assert!(
+        h.status_line().contains("Nothing to save"),
+        "{}",
+        h.status_line()
+    );
+}
+
+#[tokio::test]
+async fn enter_writes_into_an_existing_file_and_saves_earlier_session_changes() {
+    let mut h = start().await;
+    let path = config_path("existing");
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(
+        &path,
+        "# mine\n[detail.rulings]\nsplit = \"trigger\"  # keep\n",
+    )
+    .unwrap();
+    h.app.set_config_path(Some(path.clone()));
+    h.press("<leader>cj<Tab><Esc>");
+    h.press("<leader>cjjjj<Tab><CR>");
+    assert!(
+        h.status_line().contains("Saved 2 settings to"),
+        "{}",
+        h.status_line()
+    );
+    let text = std::fs::read_to_string(&path).unwrap();
+    assert!(
+        text.starts_with("# mine\n[detail.rulings]\nsplit = \"never\"  # keep\n"),
+        "{text}"
+    );
+    assert!(text.contains("[search]\nmax_pages = 6\n"), "{text}");
+}
+
+#[tokio::test]
+async fn without_a_config_file_location_nothing_is_saved() {
+    let mut h = start().await;
+    h.press("<leader>cj<Tab><CR>");
+    assert!(h.app.config_window().is_some(), "the window stays open");
+    assert!(
+        h.status_line().contains("No config file location is known"),
+        "{}",
+        h.status_line()
+    );
+}
+
+#[tokio::test]
+async fn renders_a_value_being_typed() {
+    let mut h = start().await;
+    h.press("<leader>cjA");
+    h.type_text("0");
+    insta::assert_snapshot!(h.screen());
+}

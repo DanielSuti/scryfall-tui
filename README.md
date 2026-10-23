@@ -186,7 +186,7 @@ Rulings take one extra Scryfall request per card, kept for the session. In `auto
 
 Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `never` in both views skips that question. Terminals without one, such as Alacritty, show no image.
 
-`<Space>c` opens the config window, listing these settings with their values. `j`/`k` move, `<Tab>` and `<S-Tab>` step through preset values, and each change applies at once. `<Esc>` closes the window keeping the changes for the session, and `q` sets back what changed since it opened.
+`<Space>c` opens the config window, listing these settings with their values. `j`/`k` move, `<Tab>` and `<S-Tab>` step through preset values, and `i` or `a` lets you type a value, as in vim, until `<Esc>`. Each change applies at once. `<Enter>` closes the window and saves the changed settings to the config file, creating it from the defaults above if needed and keeping your comments otherwise. `<Esc>` closes it keeping the changes for this session only, and `q` sets back what changed since it opened.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 

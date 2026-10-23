@@ -822,6 +822,7 @@ impl App {
                 &self.saved,
                 &self.theme,
             );
+            self.render_config_input(frame, body);
         }
         if !entries.is_empty() {
             let body = Rect {

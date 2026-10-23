@@ -240,13 +240,15 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 │                          │┃        ┃ Images in the full detail    auto                                       ┃
 │                          │┃        ┃ Images pause (ms)            50                                         ┃
 ╰──────────────────────────╯┗━━━━━━━━┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
- NORMAL  │ Config │ 1 changed                                   j/k move · ⇥ next value · <Esc> keep · q cancel
+ NORMAL  │ Config │ 1 changed               j/k move · ⇥ next value · i/a edit · ⏎ save · <Esc> keep · q cancel
 ```
 
 | Key | Action |
 |---|---|
 | `j`/`k`, `↓`/`↑` | Move between settings. |
-| `<Tab>` / `<S-Tab>` | Set the next or previous preset. A value that is no preset, such as one already in the file, takes a place in the cycle. |
+| `<Tab>` / `<S-Tab>` | Set the next or previous preset. A value that is no preset, such as one already in the file or one you typed, takes a place in the cycle. |
+| `i`/`I`, `a`/`A` | Type the value, with the text cursor at its start or its end, in insert mode. Formats are typed as `standard, pioneer`; empty text means none. `<Esc>` or `<Enter>` ends typing. A value the setting refuses leaves it as it was, and the status line says why, such as `Pages per batch must be a whole number of 1 or more`. |
+| `<Enter>` | Close and save every setting that differs from the config file, those changed for the session earlier included. A missing file is created as the commented defaults with the changes. Comments, order and other keys in an existing file stay as written. |
 | `<Esc>` | Close, keeping the changes for the session. |
 | `q` | Close, setting back what changed since the window opened. |
 
