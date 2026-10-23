@@ -3,8 +3,10 @@
 //! The fake holds a list of cards and answers `GET /cards/search` from it. `GET
 //! /cards/<id>/rulings` answers the rulings set for that card, none by default, and a 404
 //! Error object for an id none of the cards has. Every `image_uris.normal` it serves, on the
-//! card and on its faces, points at the fake's `/images/`, which answers
-//! [`CARD_IMAGE_FIXTURE`] for every image, so no test reaches Scryfall's image servers. It supports a
+//! card and on its faces, points at `/images/` on a second server standing in for Scryfall's
+//! file servers, which answers [`CARD_IMAGE_FIXTURE`] for every image, so no test reaches
+//! Scryfall's image servers. [`FakeScryfall::client`] gives a client whose gateway allows only
+//! these two servers. It supports a
 //! documented subset of the query language: every whitespace-separated term must appear in
 //! the card name, ignoring case. Parentheses around terms are dropped. A term containing `:` is ignored with a warning, as Scryfall
 //! warns about expressions it cannot use.
@@ -21,6 +23,8 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use scry::scryfall::client::{RateLimits, ScryfallClient};
+use scry::scryfall::gateway::{Gateway, Policy};
 use serde_json::{Value, json};
 use wiremock::matchers::{method, path, path_regex};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
@@ -59,12 +63,14 @@ struct State {
     failing_images: HashMap<String, u16>,
     images_received: Vec<Received>,
     base_url: String,
+    files_url: String,
 }
 
 /// The fake. Clones share state.
 #[derive(Debug, Clone)]
 pub struct FakeScryfall {
     state: Arc<Mutex<State>>,
+    files: Arc<MockServer>,
 }
 
 /// The recorded Card object `tests/fixtures/scryfall/<name>.json`.
@@ -111,9 +117,11 @@ pub fn card_released(name: &str, released_at: &str) -> Value {
 }
 
 impl FakeScryfall {
-    /// Starts a mock server answering from `cards`, with Scryfall's page size of 175.
+    /// Starts a mock server answering from `cards`, with Scryfall's page size of 175, and the
+    /// file server its image URIs point at, which lives as long as the fake.
     pub async fn start(cards: Vec<Value>) -> (MockServer, FakeScryfall) {
         let server = MockServer::start().await;
+        let files = MockServer::start().await;
         let fake = FakeScryfall {
             state: Arc::new(Mutex::new(State {
                 cards,
@@ -128,7 +136,9 @@ impl FakeScryfall {
                 failing_images: HashMap::new(),
                 images_received: Vec::new(),
                 base_url: server.uri(),
+                files_url: files.uri(),
             })),
+            files: Arc::new(files),
         };
         Mock::given(method("GET"))
             .and(path("/cards/search"))
@@ -143,9 +153,31 @@ impl FakeScryfall {
         Mock::given(method("GET"))
             .and(path_regex(r"^/images/[^/]+\.png$"))
             .respond_with(FakeImages(fake.clone()))
-            .mount(&server)
+            .mount(&fake.files)
             .await;
         (server, fake)
+    }
+
+    /// Returns a client for this fake with `limits`, through a gateway of its own that sends
+    /// only to the fake's API and file servers.
+    pub fn client(&self, limits: RateLimits) -> ScryfallClient {
+        let (api, files) = {
+            let state = self.state.lock().unwrap();
+            (
+                state.base_url.parse().unwrap(),
+                state.files_url.parse().unwrap(),
+            )
+        };
+        let gateway = Gateway::start(Policy::local(&api, &files), limits).unwrap();
+        ScryfallClient::with_base_url(api, gateway)
+    }
+
+    /// Returns a client for an API at `base_url` with `limits`, such as an address nothing
+    /// listens on, through a gateway that sends only there.
+    pub fn client_at(base_url: &str, limits: RateLimits) -> ScryfallClient {
+        let url: reqwest::Url = base_url.parse().unwrap();
+        let gateway = Gateway::start(Policy::local(&url, &url), limits).unwrap();
+        ScryfallClient::with_base_url(url, gateway)
     }
 
     /// Sets the number of cards per page.
@@ -210,7 +242,7 @@ impl FakeScryfall {
 
     /// Returns the URL the fake serves the front image of the card with id `card_id` at.
     pub fn image_url(&self, card_id: &str) -> String {
-        image_url(&self.state.lock().unwrap().base_url, card_id)
+        image_url(&self.state.lock().unwrap().files_url, card_id)
     }
 
     /// Returns the number of search requests received so far.
@@ -238,19 +270,20 @@ fn received(request: &Request) -> Received {
     }
 }
 
-/// The URL of image `name` on the fake at `base_url`.
-fn image_url(base_url: &str, name: &str) -> String {
-    format!("{base_url}/images/{name}.png")
+/// The URL of image `name` on the fake's file server at `files_url`.
+fn image_url(files_url: &str, name: &str) -> String {
+    format!("{files_url}/images/{name}.png")
 }
 
-/// Returns `card` with its image URIs pointing at the fake at `base_url`: the card's at
+/// Returns `card` with its image URIs pointing at the fake's file server at `files_url`: the
+/// card's at
 /// `<id>.png`, and on a card with one image per face, the first face's there too and every
 /// other face's at `<id>-face<n>.png`.
-fn with_local_images(card: &Value, base_url: &str) -> Value {
+fn with_local_images(card: &Value, files_url: &str) -> Value {
     let mut card = card.clone();
     let id = card["id"].as_str().unwrap_or_default().to_owned();
     if card["image_uris"].is_object() {
-        card["image_uris"]["normal"] = json!(image_url(base_url, &id));
+        card["image_uris"]["normal"] = json!(image_url(files_url, &id));
     }
     if let Some(faces) = card["card_faces"].as_array_mut() {
         for (index, face) in faces.iter_mut().enumerate() {
@@ -259,7 +292,7 @@ fn with_local_images(card: &Value, base_url: &str) -> Value {
                     0 => id.clone(),
                     n => format!("{id}-face{n}"),
                 };
-                face["image_uris"]["normal"] = json!(image_url(base_url, &name));
+                face["image_uris"]["normal"] = json!(image_url(files_url, &name));
             }
         }
     }
@@ -358,7 +391,7 @@ impl Respond for FakeScryfall {
             .iter()
             .skip(start)
             .take(state.page_size)
-            .map(|card| with_local_images(card, &state.base_url))
+            .map(|card| with_local_images(card, &state.files_url))
             .collect();
         let has_more = start + data.len() < matching.len();
         let next_page = has_more.then(|| {

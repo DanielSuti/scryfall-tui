@@ -174,8 +174,8 @@ impl App {
     }
 
     /// Fetches the image at `url` of the card with printing id `card_id` in the background. A
-    /// rate-limited request is retried up to [`MAX_RATE_LIMIT_RETRIES`] times; the source's own
-    /// throttle does the waiting.
+    /// rate-limited request is retried up to [`MAX_RATE_LIMIT_RETRIES`] times; the source's
+    /// request gateway does the waiting.
     fn fetch_image(&mut self, card_id: String, url: String) {
         let Some(services) = self.services.clone() else {
             self.images

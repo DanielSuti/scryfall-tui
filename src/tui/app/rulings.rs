@@ -66,7 +66,7 @@ impl App {
 
     /// Fetches the rulings of the card with printing id `card_id` in the background, keeping
     /// them under `key`. A rate-limited request is retried up to [`MAX_RATE_LIMIT_RETRIES`]
-    /// times; the source's own throttle does the waiting.
+    /// times; the source's request gateway does the waiting.
     fn fetch_rulings(&mut self, key: String, card_id: String) {
         let Some(services) = self.services.clone() else {
             self.rulings

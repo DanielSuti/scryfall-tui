@@ -7,8 +7,9 @@ mod support;
 use std::time::Duration;
 
 use scry::domain::type_line::SUPERTYPES;
-use scry::net::throttle::Throttle;
-use scry::scryfall::client::{ACCEPT_JSON, RateLimits, ScryfallClient, USER_AGENT};
+use scry::scryfall::client::{ACCEPT_JSON, RateLimits, ScryfallClient};
+use scry::scryfall::error::ScryfallError;
+use scry::scryfall::gateway::{Gateway, Policy};
 use scry::search::api::ApiSearch;
 use scry::search::{CardRulings, CardSearch, SearchRequest, SortField, SortOrder};
 use support::dummy_scryfall::{
@@ -18,16 +19,26 @@ use support::dummy_scryfall::{
 
 /// The recorder waits this long between requests: twice Scryfall's interval for searches.
 const RECORDING_INTERVAL: Duration = Duration::from_secs(1);
+/// The recorder's limits: [`RECORDING_INTERVAL`] between any two requests.
+const RECORDING: RateLimits = RateLimits {
+    search: RECORDING_INTERVAL,
+    other: RECORDING_INTERVAL,
+    files: RECORDING_INTERVAL,
+    ..RateLimits::SCRYFALL
+};
 
 const LOCAL: RateLimits = RateLimits {
     search: Duration::ZERO,
+    manifest: Duration::ZERO,
     other: Duration::ZERO,
-    images: Duration::ZERO,
+    files: Duration::ZERO,
     rate_limited_pause: Duration::ZERO,
 };
 
 async fn search_on(server: &wiremock::MockServer) -> ApiSearch {
-    ApiSearch::new(ScryfallClient::with_base_url(server.uri().parse().unwrap(), LOCAL).unwrap())
+    let url: reqwest::Url = server.uri().parse().unwrap();
+    let gateway = Gateway::start(Policy::local(&url, &url), LOCAL).unwrap();
+    ApiSearch::new(ScryfallClient::with_base_url(url, gateway))
 }
 
 #[tokio::test]
@@ -46,7 +57,10 @@ async fn every_recorded_request_has_an_answer() {
 #[tokio::test]
 async fn supertypes_match_the_recorded_catalog() {
     let (server, dummy) = DummyScryfall::start().await;
-    let catalog: serde_json::Value = reqwest::get(format!("{}/catalog/supertypes", server.uri()))
+    let base: reqwest::Url = server.uri().parse().unwrap();
+    let gateway = Gateway::start(Policy::local(&base, &base), LOCAL).unwrap();
+    let catalog: serde_json::Value = gateway
+        .get(base.join("/catalog/supertypes").unwrap(), ACCEPT_JSON)
         .await
         .unwrap()
         .json()
@@ -141,30 +155,23 @@ async fn every_order_reverses() {
     );
 }
 
-/// Sends every request of `recorded_requests` to the live API, one per
-/// `RECORDING_INTERVAL`, and saves the trimmed answers in `RECORDINGS_DIR`, replacing the
+/// Sends every request of `recorded_requests` to the live API through a gateway with
+/// `RECORDING` limits, and saves the trimmed answers in `RECORDINGS_DIR`, replacing the
 /// previous recordings. It stops at the first 429 so as not to add to a rate-limit penalty.
 #[tokio::test]
 #[ignore = "calls the live Scryfall API to refresh the recordings"]
 async fn record_scryfall_answers() {
     let requests = recorded_requests();
-    let http = reqwest::Client::new();
-    let throttle = Throttle::new();
+    let gateway = Gateway::start(Policy::scryfall(), RECORDING).unwrap();
     let mut recordings = Vec::new();
     for (name, url) in &requests {
-        throttle.acquire("recording", RECORDING_INTERVAL).await;
-        let response = http
-            .get(url.clone())
-            .header("User-Agent", USER_AGENT)
-            .header("Accept", ACCEPT_JSON)
-            .send()
-            .await
-            .unwrap();
+        let response = match gateway.get(url.clone(), ACCEPT_JSON).await {
+            Err(ScryfallError::RateLimited { .. }) => {
+                panic!("{name}: rate-limited; wait before recording again")
+            }
+            other => other.unwrap(),
+        };
         let status = response.status().as_u16();
-        assert_ne!(
-            status, 429,
-            "{name}: rate-limited; wait before recording again"
-        );
         let body: serde_json::Value = response.json().await.unwrap();
         recordings.push((
             name.clone(),

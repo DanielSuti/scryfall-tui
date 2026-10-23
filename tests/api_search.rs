@@ -4,7 +4,7 @@ mod support;
 
 use std::time::Duration;
 
-use scry::scryfall::client::{RateLimits, ScryfallClient};
+use scry::scryfall::client::RateLimits;
 use scry::search::api::ApiSearch;
 use scry::search::{CardImages, CardSearch, SearchError, SearchRequest, SortField, SortOrder};
 use support::fake_scryfall::{
@@ -13,8 +13,9 @@ use support::fake_scryfall::{
 
 const NO_LIMITS: RateLimits = RateLimits {
     search: Duration::ZERO,
+    manifest: Duration::ZERO,
     other: Duration::ZERO,
-    images: Duration::ZERO,
+    files: Duration::ZERO,
     rate_limited_pause: Duration::ZERO,
 };
 
@@ -28,17 +29,17 @@ fn dragons(count: usize) -> Vec<serde_json::Value> {
         .collect()
 }
 
-async fn search(server: &wiremock::MockServer) -> ApiSearch {
-    ApiSearch::new(ScryfallClient::with_base_url(server.uri().parse().unwrap(), NO_LIMITS).unwrap())
+async fn search(fake: &FakeScryfall) -> ApiSearch {
+    ApiSearch::new(fake.client(NO_LIMITS))
 }
 
 #[tokio::test]
 async fn first_page_holds_the_configured_page_and_the_total() {
     let mut cards = dragons(12);
     cards.push(card_named("Sol Ring"));
-    let (server, fake) = FakeScryfall::start(cards).await;
+    let (_server, fake) = FakeScryfall::start(cards).await;
     fake.set_page_size(5);
-    let page = search(&server)
+    let page = search(&fake)
         .await
         .first_page(&by_name("dragon"))
         .await
@@ -66,8 +67,8 @@ async fn the_order_is_sent_to_scryfall() {
         card_released("Young Dragon", "2026-10-19"),
         card_released("Ancient Dragon", "2001-01-01"),
     ];
-    let (server, fake) = FakeScryfall::start(cards).await;
-    let search = search(&server).await;
+    let (_server, fake) = FakeScryfall::start(cards).await;
+    let search = search(&fake).await;
     let names = |page: scry::domain::search_results::SearchPage| -> Vec<String> {
         page.cards.iter().map(|c| c.display_name()).collect()
     };
@@ -108,8 +109,8 @@ async fn the_order_is_sent_to_scryfall() {
 
 #[tokio::test]
 async fn warnings_are_kept_verbatim() {
-    let (server, _fake) = FakeScryfall::start(dragons(2)).await;
-    let page = search(&server)
+    let (_server, fake) = FakeScryfall::start(dragons(2)).await;
+    let page = search(&fake)
         .await
         .first_page(&by_name("dragon c:r"))
         .await
@@ -121,8 +122,8 @@ async fn warnings_are_kept_verbatim() {
 
 #[tokio::test]
 async fn no_match_is_an_empty_page_with_scryfalls_message() {
-    let (server, _fake) = FakeScryfall::start(dragons(2)).await;
-    let page = search(&server)
+    let (_server, fake) = FakeScryfall::start(dragons(2)).await;
+    let page = search(&fake)
         .await
         .first_page(&by_name("goblin"))
         .await
@@ -135,9 +136,9 @@ async fn no_match_is_an_empty_page_with_scryfalls_message() {
 
 #[tokio::test]
 async fn next_page_follows_the_token() {
-    let (server, fake) = FakeScryfall::start(dragons(7)).await;
+    let (_server, fake) = FakeScryfall::start(dragons(7)).await;
     fake.set_page_size(5);
-    let search = search(&server).await;
+    let search = search(&fake).await;
     let first = search.first_page(&by_name("dragon")).await.unwrap();
     let second = search
         .next_page(first.next.as_ref().unwrap())
@@ -183,9 +184,9 @@ mod batches {
 
     #[tokio::test]
     async fn batches_deliver_every_card_once_in_order() {
-        let (server, fake) = FakeScryfall::start(dragons(12)).await;
+        let (_server, fake) = FakeScryfall::start(dragons(12)).await;
         fake.set_page_size(5);
-        let search = search(&server).await;
+        let search = search(&fake).await;
         let (first, next) = run_batch(&search, BatchStart::Query(by_name("dragon")), 2).await;
         assert_eq!(first.len(), 2);
         assert_eq!(
@@ -212,10 +213,10 @@ mod batches {
 
     #[tokio::test]
     async fn loading_stops_at_the_last_page() {
-        let (server, fake) = FakeScryfall::start(dragons(12)).await;
+        let (_server, fake) = FakeScryfall::start(dragons(12)).await;
         fake.set_page_size(5);
         let (log, next) = run_batch(
-            &search(&server).await,
+            &search(&fake).await,
             BatchStart::Query(by_name("dragon")),
             6,
         )
@@ -227,16 +228,14 @@ mod batches {
 
     #[tokio::test]
     async fn rate_limited_pages_are_retried_after_the_pause() {
-        let (server, fake) = FakeScryfall::start(dragons(4)).await;
+        let (_server, fake) = FakeScryfall::start(dragons(4)).await;
         fake.set_page_size(2);
         fake.set_min_interval(Duration::from_millis(150));
         let limits = RateLimits {
             rate_limited_pause: Duration::from_millis(200),
             ..NO_LIMITS
         };
-        let search = ApiSearch::new(
-            ScryfallClient::with_base_url(server.uri().parse().unwrap(), limits).unwrap(),
-        );
+        let search = ApiSearch::new(fake.client(limits));
         let (log, _) = run_batch(&search, BatchStart::Query(by_name("dragon")), 2).await;
         assert_eq!(
             log,
@@ -250,11 +249,11 @@ mod batches {
 
     #[tokio::test]
     async fn a_failure_stops_the_batch() {
-        let (server, fake) = FakeScryfall::start(dragons(6)).await;
+        let (_server, fake) = FakeScryfall::start(dragons(6)).await;
         fake.set_page_size(2);
         fake.fail_on_page(2);
         let (log, next) = run_batch(
-            &search(&server).await,
+            &search(&fake).await,
             BatchStart::Query(by_name("dragon")),
             3,
         )
@@ -267,12 +266,12 @@ mod batches {
 
 #[tokio::test]
 async fn found_cards_carry_their_image_which_the_search_fetches() {
-    let (server, fake) = FakeScryfall::start(vec![
+    let (_server, fake) = FakeScryfall::start(vec![
         card_named("Glorybringer"),
         fixture("transform_delver"),
     ])
     .await;
-    let search = search(&server).await;
+    let search = search(&fake).await;
     let page = search.first_page(&by_name("")).await.unwrap();
     let urls: Vec<&str> = page.cards.iter().filter_map(|c| c.image_url()).collect();
     let delver_id = page.cards[0].id().to_owned();

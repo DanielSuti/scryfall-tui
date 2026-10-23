@@ -7,7 +7,7 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
   └─ app (command registry, selection, config, history, results cache)
        └─ search (traits CardSearch, CardRulings, CardImages; ApiSearch now, LocalSearch planned)
             ├─ scryfall (API client, wire types, parse to domain, errors)
-            │    └─ net (throttle)
+            │    └─ net (schedule)
             └─ domain (Card, Face, TypeLine, Legalities, Ruling, SearchResults)
 ```
 
@@ -15,10 +15,11 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 
 - **domain** holds service-neutral card data with its behaviour. Cards are identified by the Scryfall printing `id` and grouped by `oracle_id`. `Card` produces the display values joined across faces with ` // `. `TypeLine` separates supertypes, card types and subtypes.
 - **scryfall** owns all knowledge of the Scryfall API: base URL, headers, rate-limit intervals, the Error object and the JSON wire types. `parse` turns wire types into domain values. The bulk-data files of a later release use the same Card objects, so the parser serves both.
-- **net::Throttle** enforces a minimum interval between request starts per bucket, and pauses every bucket after a rate-limit response. The caller supplies the intervals.
+- **scryfall::gateway** is the one way out to the network. `Gateway::live` starts one actor per process, which owns the only HTTP client, sets the User-Agent and Accept headers, and refuses hosts other than `api.scryfall.com` and `*.scryfall.io`. It sorts each URL into Scryfall's limits: search-like endpoints, the manifest, the whole API, and the file servers. Each limit has its own queue, so a waiting search doesn't hold back an image, and a request starts only once the interval since the last request under each of its limits has passed. A 429 pauses every queue, longer after each further 429 in a row. A request whose caller stopped waiting is dropped before it is sent. Anything new that talks to Scryfall, such as prices, goes through a `ScryfallClient`, and so through the gateway, and gets these limits without further work.
+- **net::Schedule** keeps the time for the gateway: the next start per bucket, where a request can count in several buckets, and pauses. It sends nothing itself.
 - **search::CardSearch** is the contract every search source implements: a query in, pages of cards out. `ApiSearch` sends the query to Scryfall unchanged. A planned `LocalSearch` will search the offline copy. Batch loading, which follows pages up to the configured cap, is written once against the trait.
-- **search::CardRulings** is the contract for rulings: a card's printing id in, its rulings out. `ApiSearch` implements it with the same client as the search, so both share one throttle.
-- **search::CardImages** is the contract for card images: a card's image URL in, the encoded image bytes out. `ApiSearch` fetches them from Scryfall's image servers through the same client, in a throttle bucket of their own, so an image never delays a search or a ruling but a 429 pauses them all.
+- **search::CardRulings** is the contract for rulings: a card's printing id in, its rulings out. `ApiSearch` implements it with the same client as the search, through the same gateway.
+- **search::CardImages** is the contract for card images: a card's image URL in, the encoded image bytes out. `ApiSearch` fetches them from Scryfall's image servers through the same client, under the file servers' limit, so an image never waits for a search or a ruling, but a 429 pauses them all.
 - **app** holds state that is not drawing: the command registry, the selected card, the config, the search history and the session's results cache.
 - **tui** draws and handles keys. Rendering is a pure function of the `App` state. Keys, timers and background results all arrive as `AppEvent`s handed to `App::handle_event`, so tests drive the app without a terminal.
 

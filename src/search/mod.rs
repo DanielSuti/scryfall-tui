@@ -270,7 +270,7 @@ pub enum BatchEvent {
 
 /// Loads up to `max_pages` pages from `start`, following each page's token, and reports each
 /// page, rate-limit pause and failure to `on_event`. A rate-limited request is retried up to
-/// [`MAX_RATE_LIMIT_RETRIES`] times; the source's own throttle does the waiting.
+/// [`MAX_RATE_LIMIT_RETRIES`] times; the source's request gateway does the waiting.
 ///
 /// Returns the token of the page after the batch, or `None` when the last page was loaded or
 /// a request failed.
