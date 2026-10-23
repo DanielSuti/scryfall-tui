@@ -47,3 +47,4 @@ All notable changes to this project are documented in this file, newest release 
 - The focused panel's border and title are green and bold, as in lazygit. All interface styles come from one theme.
 - The selected line of the focused panel is bold on a blue background across its width, as in lazygit, instead of the `▌` marker.
 - The history shows no selection while it doesn't have focus, and its entries use the full width.
+- Backlog of readability ideas taken from tig, yazi and lazygit.
