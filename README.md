@@ -66,7 +66,8 @@ The focused panel has a heavy green border, and its selected line is bold on a b
 | `j`/`k`, `↓`/`↑` | Next or previous row |
 | `gg`/`G`, `Home`/`End` | First or last row |
 | `<C-d>`/`<C-u>`, `PageDown`/`PageUp` | Half a page down or up |
-| `/`, then `n`/`N` | Search the focused panel's text, then the next or previous match |
+| `/`, then `n`/`N` | Search the focused panel's text, then the next or previous match. Matches light up as you type |
+| `<Esc>` | Clear the search highlight |
 | `,` then a letter | Sort the results (see below) |
 | `<Space>sk` | List every key and command |
 | `Q` | Quit |

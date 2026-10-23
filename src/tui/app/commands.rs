@@ -27,7 +27,7 @@ pub const FOCUS_HISTORY: CommandId = CommandId("focus.history");
 pub const FOCUS_MAIN: CommandId = CommandId("focus.main");
 /// Focuses the detail of the split.
 pub const FOCUS_DETAIL: CommandId = CommandId("focus.detail");
-/// Closes the history overlay.
+/// Clears the search highlight and closes the history overlay.
 pub const CLOSE_OVERLAY: CommandId = CommandId("history.close_overlay");
 /// Shows the full detail in the main panel.
 pub const FULL_DETAIL: CommandId = CommandId("main.full_detail");
@@ -37,6 +37,8 @@ pub const SPLIT: CommandId = CommandId("main.split");
 pub const BACK: CommandId = CommandId("main.back");
 /// Steps back from the results, which quits.
 pub const QUIT_FROM_RESULTS: CommandId = CommandId("main.quit");
+/// Clears the highlight of the last `/` search.
+pub const CLEAR_SEARCH: CommandId = CommandId("pane.search.clear");
 /// Opens the `/` prompt to search the focused panel.
 pub const SEARCH_PANE: CommandId = CommandId("pane.search");
 /// Runs the search typed in the `/` prompt.
@@ -67,11 +69,47 @@ impl App {
     }
 
     fn open_prompt(&mut self) {
+        self.prompt_origin = self.focused_pane().map(|(pane, _)| pane.current_line());
         self.prompt = Some(QueryInput::new());
         self.enter_insert_mode();
     }
 
+    /// Moves the focused panel back to the line it was on when the prompt opened.
+    fn restore_prompt_origin(&mut self) {
+        let Some(origin) = self.prompt_origin else {
+            return;
+        };
+        if let Some((pane, viewport)) = self.focused_pane() {
+            pane.jump_to(origin, viewport);
+        }
+    }
+
+    /// Moves the focused panel to the first match of the pattern typed so far, searching on
+    /// from where the prompt opened, or back there when nothing matches.
+    pub(super) fn preview_prompt(&mut self) {
+        self.restore_prompt_origin();
+        let (Some(pattern), Some(origin)) = (
+            self.prompt.as_ref().map(|p| p.value().to_owned()),
+            self.prompt_origin,
+        ) else {
+            return;
+        };
+        if let Some((pane, viewport)) = self.focused_pane()
+            && let Some(found) = find(pane.search_lines(), &pattern, origin, Direction::Forward)
+        {
+            pane.jump_to(found.index, viewport);
+        }
+    }
+
+    /// Closes the prompt and puts the focused panel back where it was.
+    fn cancel_prompt(&mut self) {
+        if self.prompt.take().is_some() {
+            self.restore_prompt_origin();
+        }
+    }
+
     fn run_prompt(&mut self) {
+        self.restore_prompt_origin();
         let pattern = self
             .prompt
             .take()
@@ -90,6 +128,7 @@ impl App {
             self.message = Some(StatusMessage::error("No previous search pattern"));
             return;
         };
+        self.search_highlight = true;
         let Some((pane, viewport)) = self.focused_pane() else {
             self.message = Some(StatusMessage::error("Nothing to search in this panel"));
             return;
@@ -133,7 +172,7 @@ pub(super) fn register_all(
         &["<Esc>"],
         command(NORMAL_MODE, global, "Back to normal mode", None, |app| {
             app.mode = Mode::Normal;
-            app.prompt = None;
+            app.cancel_prompt();
             app.dispatcher.reset();
         }),
     )?;
@@ -181,9 +220,10 @@ pub(super) fn register_all(
         command(
             CLOSE_OVERLAY,
             HISTORY_SCOPE,
-            "Close the history overlay",
+            "Clear the highlight and close the overlay",
             None,
             |app| {
+                app.search_highlight = false;
                 if app.history_overlay {
                     app.set_focus(Panel::Main);
                 }
@@ -254,6 +294,17 @@ fn register_pane_commands(reg: &mut Registrar<'_>) -> Result<(), RegistrationErr
         motion("pane.half_up", "Half a page up", |app| {
             app.motion(Motion::HalfPageUp);
         }),
+    )?;
+    reg.add(
+        Mode::Normal,
+        &["<Esc>"],
+        command(
+            CLEAR_SEARCH,
+            Scope::GLOBAL,
+            "Clear the search highlight",
+            None,
+            |app| app.search_highlight = false,
+        ),
     )?;
     reg.add(
         Mode::Normal,

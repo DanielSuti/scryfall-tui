@@ -20,6 +20,8 @@ pub struct Theme {
     pub error: Style,
     /// Secondary text, such as the base terms of the search bar.
     pub dim: Style,
+    /// The text that `/` matches, as yazi's `find_keyword`.
+    pub find_keyword: Style,
 }
 
 impl Default for Theme {
@@ -32,6 +34,11 @@ impl Default for Theme {
             info: Style::new(),
             error: Style::new().fg(Color::Red),
             dim: Style::new().add_modifier(Modifier::DIM),
+            find_keyword: Style::new().fg(Color::Yellow).add_modifier(
+                Modifier::BOLD
+                    .union(Modifier::ITALIC)
+                    .union(Modifier::UNDERLINED),
+            ),
         }
     }
 }

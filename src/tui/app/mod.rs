@@ -41,7 +41,7 @@ use crate::tui::views::history::HistoryView;
 use crate::tui::views::results::{ResultsView, load_summary};
 use crate::tui::views::search_bar::SearchBar;
 use crate::tui::widgets::item_list::{Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::Pane;
+use crate::tui::widgets::pane_search::{Pane, PaneSearch};
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
 use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup, pair_case_twins};
@@ -127,7 +127,9 @@ pub struct App {
     batches_running: usize,
     sort_order: SortOrder,
     prompt: Option<QueryInput>,
+    prompt_origin: Option<usize>,
     last_pattern: Option<String>,
+    search_highlight: bool,
     message: Option<StatusMessage>,
     picker: Option<Picker<CommandId>>,
 }
@@ -181,7 +183,9 @@ impl App {
             batches_running: 0,
             sort_order: SortOrder::default(),
             prompt: None,
+            prompt_origin: None,
             last_pattern: None,
+            search_highlight: false,
             message: None,
             picker: None,
         };
@@ -494,6 +498,7 @@ impl App {
                     match self.prompt.as_mut() {
                         Some(prompt) => {
                             prompt.handle_key(event);
+                            self.preview_prompt();
                         }
                         None => self.search_bar.handle_key(event),
                     }
@@ -582,10 +587,18 @@ impl App {
         let inner = block.inner(areas.main);
         frame.render_widget(block, areas.main);
         if self.main_view == MainView::FullDetail {
-            self.detail.render(inner, frame.buffer_mut());
+            let search = self.pane_search_in(Panel::Main);
+            self.detail
+                .render(inner, frame.buffer_mut(), &self.theme, search.as_ref());
         } else {
-            self.results
-                .render(inner, frame.buffer_mut(), focused(Panel::Main), &self.theme);
+            let search = self.pane_search_in(Panel::Main);
+            self.results.render(
+                inner,
+                frame.buffer_mut(),
+                focused(Panel::Main),
+                &self.theme,
+                search.as_ref(),
+            );
         }
         if let Some(detail) = areas.detail {
             let block = panel_block(
@@ -595,7 +608,9 @@ impl App {
             );
             let inner = block.inner(detail);
             frame.render_widget(block, detail);
-            self.detail.render(inner, frame.buffer_mut());
+            let search = self.pane_search_in(Panel::Detail);
+            self.detail
+                .render(inner, frame.buffer_mut(), &self.theme, search.as_ref());
         }
         if let Some(overlay) = areas.overlay {
             frame.render_widget(Clear, overlay);
@@ -649,8 +664,34 @@ impl App {
         let block = panel_block(self.title(Panel::History), focused, &self.theme);
         let inner = block.inner(area);
         frame.render_widget(block, area);
-        self.history_view
-            .render(inner, frame.buffer_mut(), focused, &self.theme);
+        let search = self.pane_search_in(Panel::History);
+        self.history_view.render(
+            inner,
+            frame.buffer_mut(),
+            focused,
+            &self.theme,
+            search.as_ref(),
+        );
+    }
+
+    /// Returns the pattern `/` shows: the one being typed, or the last one searched for until
+    /// `<Esc>` clears it. Returns `None` when there is none or it is empty.
+    pub fn active_pattern(&self) -> Option<&str> {
+        let pattern = match &self.prompt {
+            Some(prompt) => Some(prompt.value()),
+            None if self.search_highlight => self.last_pattern.as_deref(),
+            None => None,
+        };
+        pattern.filter(|p| !p.is_empty())
+    }
+
+    /// Returns what `/` shows in `panel`: the active pattern when `panel` has focus, since only
+    /// the focused panel is searched.
+    fn pane_search_in(&self, panel: Panel) -> Option<PaneSearch<'_>> {
+        if self.focus != panel {
+            return None;
+        }
+        self.active_pattern().map(|pattern| PaneSearch { pattern })
     }
 
     /// The message shown while no event message is set: a problem in `detail.formats`, then

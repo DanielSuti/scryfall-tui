@@ -6,8 +6,9 @@ use ratatui::text::Line;
 
 use crate::domain::card::{Card, Face};
 use crate::tui::text::{display_width, truncate, wrap};
+use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::{Navigable, Searchable};
+use crate::tui::widgets::pane_search::{Navigable, PaneSearch, Searchable, highlight};
 
 /// From this width on the legalities are laid out in two columns.
 pub const LEGALITY_TWO_COLUMN_MIN_WIDTH: usize = 50;
@@ -125,8 +126,15 @@ impl DetailView {
         self.scroll
     }
 
-    /// Draws the lines from the scroll position into `area`, each indented by one column.
-    pub fn render(&self, area: Rect, buf: &mut Buffer) {
+    /// Draws the lines from the scroll position into `area`, each indented by one column, with
+    /// the matches of `search` in `theme.find_keyword`.
+    pub fn render(
+        &self,
+        area: Rect,
+        buf: &mut Buffer,
+        theme: &Theme,
+        search: Option<&PaneSearch<'_>>,
+    ) {
         if self.lines.is_empty() {
             buf.set_line(
                 area.x + 1,
@@ -141,10 +149,14 @@ impl DetailView {
             if row >= area.height {
                 break;
             }
+            let mut text = Line::from(line.clone());
+            if let Some(search) = search {
+                text = highlight(text, search.pattern, theme.find_keyword);
+            }
             buf.set_line(
                 area.x + 1,
                 area.y + row,
-                &Line::from(line.as_str()),
+                &text,
                 area.width.saturating_sub(1),
             );
         }

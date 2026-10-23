@@ -48,3 +48,4 @@ All notable changes to this project are documented in this file, newest release 
 - The selected line of the focused panel is bold on a blue background across its width, as in lazygit, instead of the `▌` marker.
 - The history shows no selection while it doesn't have focus, and its entries use the full width.
 - Backlog of readability ideas taken from tig, yazi and lazygit.
+- `/` highlights the matches in the focused panel as you type and moves the cursor to the first one, as yazi does. `<Esc>` in the prompt cancels the search and restores the cursor, and `<Esc>` in normal mode clears the highlight.
