@@ -12,7 +12,7 @@ use ratatui::widgets::{Block, BorderType, Clear};
 
 use crate::tui::text::{display_width, truncate};
 use crate::tui::theme::Theme;
-use crate::tui::widgets::item_list::{ItemList, Motion};
+use crate::tui::widgets::item_list::{ItemList, Motion, UnfocusedCursor};
 use crate::tui::widgets::query_input::QueryInput;
 
 /// The result of a key press in the picker.
@@ -73,7 +73,7 @@ impl<T: Clone> Picker<T> {
             input: QueryInput::new(),
             matcher: Matcher::new(Config::DEFAULT),
             matches: Vec::new(),
-            list: ItemList::new(),
+            list: ItemList::with_unfocused(UnfocusedCursor::Hidden),
         };
         picker.refilter();
         picker
@@ -192,7 +192,7 @@ impl<T: Clone> Picker<T> {
         };
         self.input.render(frame, input, true);
         self.list
-            .render(list, frame.buffer_mut(), true, |index, width| {
+            .render(list, frame.buffer_mut(), true, theme, |index, width| {
                 Line::from(truncate(&self.list.rows()[index], width))
             });
     }
@@ -201,6 +201,7 @@ impl<T: Clone> Picker<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::tui::widgets::item_list::CURSOR_MARKER;
 
     fn picker() -> Picker<u32> {
         Picker::new(
@@ -275,6 +276,34 @@ mod tests {
             press(&mut picker, KeyCode::Enter, KeyModifiers::NONE),
             PickerOutcome::Selected(2)
         );
+    }
+
+    #[test]
+    fn the_selected_item_is_highlighted_without_marker() {
+        use ratatui::Terminal;
+        use ratatui::backend::TestBackend;
+        use ratatui::style::Color;
+        let mut picker = picker();
+        press(&mut picker, KeyCode::Down, KeyModifiers::NONE);
+        let mut terminal = Terminal::new(TestBackend::new(60, 12)).unwrap();
+        terminal
+            .draw(|frame| picker.render(frame, frame.area(), &Theme::default()))
+            .unwrap();
+        let buf = terminal.backend().buffer();
+        let rows: Vec<String> = (0..12)
+            .map(|y| (0..60).map(|x| buf[(x, y)].symbol()).collect())
+            .collect();
+        let y = rows
+            .iter()
+            .position(|r| r.contains("Focus the search bar"))
+            .unwrap();
+        let x = rows[y].find("Focus").unwrap();
+        let x = u16::try_from(rows[y][..x].chars().count()).unwrap();
+        let y = u16::try_from(y).unwrap();
+        assert_eq!(buf[(x, y)].bg, Color::Blue);
+        assert!(!rows.iter().any(|r| r.contains(CURSOR_MARKER)));
+        let other = rows.iter().position(|r| r.contains("Quit scry")).unwrap();
+        assert_eq!(buf[(x, u16::try_from(other).unwrap())].bg, Color::Reset);
     }
 
     #[test]

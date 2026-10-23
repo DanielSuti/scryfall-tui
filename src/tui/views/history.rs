@@ -7,6 +7,7 @@ use ratatui::text::Line;
 use crate::app::history::{History, HistoryEntry};
 use crate::domain::card::MISSING;
 use crate::tui::text::{display_width, truncate};
+use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 use crate::tui::widgets::pane_search::{Navigable, Searchable};
 
@@ -57,9 +58,10 @@ impl HistoryView {
     }
 
     /// Draws the entries into `area`: the query on the left, cut with `...` when it doesn't
-    /// fit, and the count on the right.
-    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool) {
-        self.list.render(area, buf, focused, |index, width| {
+    /// fit, and the count on the right. The cursor row is highlighted with `theme` when
+    /// `focused`.
+    pub fn render(&self, area: Rect, buf: &mut Buffer, focused: bool, theme: &Theme) {
+        self.list.render(area, buf, focused, theme, |index, width| {
             let entry = &self.entries[index];
             let count = compact_count(entry.total_cards);
             let query_width = width.saturating_sub(display_width(&count) + 1);

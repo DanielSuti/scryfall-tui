@@ -585,7 +585,7 @@ impl App {
             self.detail.render(inner, frame.buffer_mut());
         } else {
             self.results
-                .render(inner, frame.buffer_mut(), focused(Panel::Main));
+                .render(inner, frame.buffer_mut(), focused(Panel::Main), &self.theme);
         }
         if let Some(detail) = areas.detail {
             let block = panel_block(
@@ -649,7 +649,8 @@ impl App {
         let block = panel_block(self.title(Panel::History), focused, &self.theme);
         let inner = block.inner(area);
         frame.render_widget(block, area);
-        self.history_view.render(inner, frame.buffer_mut(), focused);
+        self.history_view
+            .render(inner, frame.buffer_mut(), focused, &self.theme);
     }
 
     /// The message shown while no event message is set: a problem in `detail.formats`, then
