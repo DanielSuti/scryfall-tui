@@ -5,10 +5,12 @@
 //! names a fixed color: where text sits on a colored background, it keeps the default
 //! foreground, or is reversed so it takes the terminal's background color.
 //!
-//! The flash styles follow LazyVim's flash.nvim groups and the tokyonight colors LazyVim gives
-//! them, each mapped to the palette slot of the same hue: `FlashBackdrop` (`Comment`, grey) is
-//! bright black, `FlashMatch` (`Search`) blue, `FlashCurrent` (`IncSearch`, orange) yellow, and
-//! `FlashLabel` magenta.
+//! The flash styles follow LazyVim's flash.nvim groups as tokyonight colors them, each from the
+//! palette slot of the nearest hue: `FlashBackdrop` (`Comment`, grey) is bright black,
+//! `FlashMatch` (`Search`) blue, `FlashCurrent` (`IncSearch`, orange) bright yellow, and
+//! `FlashLabel` (hot pink) bright red. Palette colors are often light, so matches and labels
+//! are reversed: dark text, in the terminal's background color, on the color, which keeps them
+//! readable on any theme.
 
 use ratatui::style::{Color, Modifier, Style};
 
@@ -38,12 +40,12 @@ pub struct Theme {
     /// Panel text while flash is open, as flash.nvim's `FlashBackdrop`: bright black, the
     /// palette's grey.
     pub flash_backdrop: Style,
-    /// Text that flash matches, as flash.nvim's `FlashMatch`: the default foreground on blue.
+    /// Text that flash matches, as flash.nvim's `FlashMatch`: blue, reversed.
     pub flash_match: Style,
     /// The match nearest the cursor, which `<Enter>` jumps to, as flash.nvim's `FlashCurrent`:
-    /// yellow, reversed, so the text takes the terminal's background color.
+    /// bright yellow, reversed.
     pub flash_current: Style,
-    /// A flash jump label, as flash.nvim's `FlashLabel`: the default foreground on magenta, bold.
+    /// A flash jump label, as flash.nvim's `FlashLabel`: bright red, reversed and bold.
     pub flash_label: Style,
 }
 
@@ -68,15 +70,18 @@ impl Default for Theme {
                 .bg(Color::Reset)
                 .add_modifier(Modifier::BOLD.union(Modifier::REVERSED)),
             flash_backdrop: Style::new().fg(Color::DarkGray),
-            flash_match: Style::new().fg(Color::Reset).bg(Color::Blue),
+            flash_match: Style::new()
+                .fg(Color::Blue)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::REVERSED),
             flash_current: Style::new()
-                .fg(Color::Yellow)
+                .fg(Color::LightYellow)
                 .bg(Color::Reset)
                 .add_modifier(Modifier::REVERSED),
             flash_label: Style::new()
-                .fg(Color::Reset)
-                .bg(Color::Magenta)
-                .add_modifier(Modifier::BOLD),
+                .fg(Color::LightRed)
+                .bg(Color::Reset)
+                .add_modifier(Modifier::BOLD.union(Modifier::REVERSED)),
         }
     }
 }
@@ -137,5 +142,22 @@ mod tests {
                 assert_ne!(style.fg, Some(fixed), "{name}: {style:?}");
             }
         }
+    }
+
+    #[test]
+    fn flash_highlights_put_dark_text_on_their_color() {
+        // Palette colors are often light; drawn as a background under the default foreground
+        // they leave light text on a light color. Reversed, the text takes the terminal's
+        // background color instead.
+        let t = Theme::default();
+        let styles = [t.flash_match, t.flash_current, t.flash_label];
+        for style in styles {
+            assert!(style.add_modifier.contains(Modifier::REVERSED), "{style:?}");
+            assert_eq!(style.bg, Some(Color::Reset), "{style:?}");
+            assert!(!matches!(style.fg, None | Some(Color::Reset)), "{style:?}");
+        }
+        let colors: Vec<_> = styles.iter().map(|s| s.fg).collect();
+        assert_eq!(colors.len(), 3);
+        assert!(colors[0] != colors[1] && colors[1] != colors[2] && colors[0] != colors[2]);
     }
 }

@@ -158,15 +158,17 @@ async fn flash_dims_the_panels_and_colors_matches_and_labels() {
     let buf = backend.buffer();
     let nearest = &flash.matches()[0];
     let other = &flash.matches()[1];
-    // The nearest match is reversed yellow; the others keep the terminal's foreground on blue.
+    // Matches, the nearest match and labels are reversed: dark text on their color.
     let near = &buf[(nearest.columns.0, nearest.y)];
-    assert_eq!(near.fg, Color::Yellow);
+    assert_eq!((near.fg, near.bg), (Color::LightYellow, Color::Reset));
     assert!(near.modifier.contains(Modifier::REVERSED));
     let far = &buf[(other.columns.0, other.y)];
-    assert_eq!((far.fg, far.bg), (Color::Reset, Color::Blue));
+    assert_eq!((far.fg, far.bg), (Color::Blue, Color::Reset));
+    assert!(far.modifier.contains(Modifier::REVERSED));
     let label = buf[(other.columns.1 + 1, other.y)].clone();
     assert_eq!(label.symbol(), other.label.unwrap().to_string());
-    assert_eq!((label.fg, label.bg), (Color::Reset, Color::Magenta));
+    assert_eq!((label.fg, label.bg), (Color::LightRed, Color::Reset));
+    assert!(label.modifier.contains(Modifier::REVERSED));
     assert!(label.modifier.contains(Modifier::BOLD));
     let main = h.app.areas().main;
     let sol = h
