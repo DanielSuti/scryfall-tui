@@ -11,6 +11,7 @@ use ratatui::widgets::{Block, BorderType, Clear, Widget};
 
 use crate::app::config::Config;
 use crate::app::settings::Setting;
+use crate::tui::layout::centered_rect;
 use crate::tui::text::{display_width, truncate};
 use crate::tui::theme::Theme;
 use crate::tui::widgets::query_input::QueryInput;
@@ -146,12 +147,7 @@ impl ConfigWindow {
         let height = u16::try_from(Setting::ALL.len() + 2)
             .unwrap_or(u16::MAX)
             .min(area.height);
-        let popup = Rect {
-            x: area.right() - width,
-            y: area.bottom() - height,
-            width,
-            height,
-        };
+        let popup = centered_rect(area, width, height);
         Layout {
             popup,
             label_width,
@@ -160,7 +156,7 @@ impl ConfigWindow {
         }
     }
 
-    /// Draws the window in the bottom-right corner of `area`, with the values of `config`.
+    /// Draws the window in the middle of `area`, with the values of `config`.
     /// Values that differ from `saved`, the config file's, are marked with [`CHANGED_MARK`].
     pub fn render(
         &self,
@@ -260,18 +256,18 @@ mod tests {
         let mut buf = Buffer::empty(area);
         let theme = Theme::default();
         window.render(area, &mut buf, &config, &saved, &theme);
-        // The window is 12 rows high at the bottom of the area: its title is on row 2.
-        assert!(row(&buf, 2).contains(" Config "), "{}", row(&buf, 2));
-        let rulings = row(&buf, 7);
+        // The window is 12 rows high in the middle of the 14: its title is on row 1.
+        assert!(row(&buf, 1).contains(" Config "), "{}", row(&buf, 1));
+        let rulings = row(&buf, 6);
         assert!(rulings.contains("Rulings in the split"), "{rulings}");
         assert!(rulings.contains("never "), "{rulings}");
         assert!(
             rulings.trim_end().ends_with(&format!("{CHANGED_MARK} ┃")),
             "the mark stands at the right edge: {rulings}"
         );
-        assert!(!row(&buf, 8).contains(CHANGED_MARK));
-        let label_x = (0..80).find(|x| buf[(*x, 7)].symbol() == "R").unwrap();
-        assert_eq!(buf[(label_x, 7)].bg, theme.selected_row.bg.unwrap());
-        assert_ne!(buf[(label_x, 8)].bg, theme.selected_row.bg.unwrap());
+        assert!(!row(&buf, 7).contains(CHANGED_MARK));
+        let label_x = (0..80).find(|x| buf[(*x, 6)].symbol() == "R").unwrap();
+        assert_eq!(buf[(label_x, 6)].bg, theme.selected_row.bg.unwrap());
+        assert_ne!(buf[(label_x, 7)].bg, theme.selected_row.bg.unwrap());
     }
 }

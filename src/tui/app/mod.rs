@@ -831,6 +831,7 @@ impl App {
             };
             WhichKeyPopup::new(&entries, &self.theme)
                 .title(self.which_key.title())
+                .centered(self.which_key.instant())
                 .render(body, frame.buffer_mut());
         }
     }

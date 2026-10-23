@@ -7,22 +7,22 @@ expression: h.screen()
 ╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
 ╭ [2] History ─────────────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━┓╭ [0] Detail ────────────────────────────────────╮
 │r                        3│┃ Dragon Mage           {3}{R}{R}┃│ Dragon Mage                           {3}{R}{R}│
-│                          │┃ Glorybringer          {3}{R}{R}┃│ Creature — Dragon                           4/4│
-│                          │┃ Shivan Dragon         {3}{R}{R}┃│                                                │
-│                          │┃                                ┃│ Flying, haste                                  │
-│                          │┃                                ┃│ You may exert this creature as it attacks. When│
-│                          │┃                                ┃│ you do, it deals 4 damage to target non-Dragon │
-│                          │┃                                ┃│ creature an opponent controls. (An exerted     │
-│                          │┃        ┏ Config ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│                          │┃        ┃ Terms added to every search  (none)                                     ┃
-│                          │┃        ┃ Pages per batch              4                                          ┃
-│                          │┃        ┃ History entries kept         40                                         ┃
-│                          │┃        ┃ Legality formats             standard, pioneer, modern, commander,...   ┃
-│                          │┃        ┃ Rulings in the split         never                                    • ┃
-│                          │┃        ┃ Rulings in the full detail   auto                                       ┃
-│                          │┃        ┃ Rulings pause (ms)           50                                         ┃
-│                          │┃        ┃ Images in the split          trigger                                    ┃
-│                          │┃        ┃ Images in the full detail    auto                                       ┃
-│                          │┃        ┃ Images pause (ms)            50                                         ┃
-╰──────────────────────────╯┗━━━━━━━━┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+│                 ┏ Config ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓               4/4│
+│                 ┃ Terms added to every search  (none)                                     ┃                  │
+│                 ┃ Pages per batch              4                                          ┃                  │
+│                 ┃ History entries kept         40                                         ┃s it attacks. When│
+│                 ┃ Legality formats             standard, pioneer, modern, commander,...   ┃target non-Dragon │
+│                 ┃ Rulings in the split         never                                    • ┃. (An exerted     │
+│                 ┃ Rulings in the full detail   auto                                       ┃our next untap    │
+│                 ┃ Rulings pause (ms)           50                                         ┃                  │
+│                 ┃ Images in the split          trigger                                    ┃                  │
+│                 ┃ Images in the full detail    auto                                       ┃e final trial is  │
+│                 ┃ Images pause (ms)            50                                         ┃etion.            │
+│                 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛                  │
+│                          │┃                                ┃│ standard   not legal                           │
+│                          │┃                                ┃│ pioneer    legal                               │
+│                          │┃                                ┃│ modern     legal                               │
+│                          │┃                                ┃│ commander  legal                               │
+│                          │┃                                ┃│ legacy     legal                               │
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
  NORMAL  │ Config │ 1 changed               j/k move · ⇥ next value · i/a edit · ⏎ save · <Esc> keep · q cancel

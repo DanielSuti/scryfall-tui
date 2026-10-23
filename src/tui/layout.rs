@@ -118,6 +118,18 @@ impl ScreenAreas {
     }
 }
 
+/// Returns a rectangle of `width` by `height` cells in the middle of `area`, cut to fit it.
+pub fn centered_rect(area: Rect, width: u16, height: u16) -> Rect {
+    let width = width.min(area.width);
+    let height = height.min(area.height);
+    Rect {
+        x: area.x + (area.width - width) / 2,
+        y: area.y + (area.height - height) / 2,
+        width,
+        height,
+    }
+}
+
 /// A bordered panel block titled `title`. The focused panel gets a heavy border drawn in
 /// `theme.focus_border`; the others a rounded border in the terminal's default color.
 pub fn panel_block(title: String, focused: bool, theme: &Theme) -> Block<'static> {
@@ -154,6 +166,18 @@ mod tests {
             assert_eq!(title.symbol(), "[");
             assert_eq!(title.fg, fg.unwrap_or(Color::Reset));
         }
+    }
+
+    #[test]
+    fn a_centered_rect_sits_in_the_middle_and_fits() {
+        let area = Rect::new(10, 5, 40, 20);
+        assert_eq!(centered_rect(area, 20, 10), Rect::new(20, 10, 20, 10));
+        assert_eq!(centered_rect(area, 21, 11), Rect::new(19, 9, 21, 11));
+        assert_eq!(
+            centered_rect(area, 80, 30),
+            area,
+            "too large: the whole area"
+        );
     }
 
     #[test]

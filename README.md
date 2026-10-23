@@ -120,7 +120,7 @@ Type any query in [Scryfall's search syntax](https://scryfall.com/docs/syntax), 
 
 ## Sorting
 
-Press `,` in any panel to open the "Sort by" window, then press a letter. The uppercase letter sorts the other way round. `<Esc>` closes the window without sorting.
+Press `,` in any panel to open the "Sort by" window in the middle of the screen, then press a letter. The uppercase letter sorts the other way round. `<Esc>` closes the window without sorting.
 
 | Key | Order | Lowercase | Uppercase |
 |---|---|---|---|

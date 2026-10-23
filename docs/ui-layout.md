@@ -201,7 +201,7 @@ Text that does not fit its column ends in `...`. Anything after it on the same l
 
 ## Sorting
 
-`,` in normal mode, in any panel, opens the "Sort by" window at once, as in yazi. A second key picks the order, and its uppercase form sorts in reverse. `<Esc>` closes the window without sorting.
+`,` in normal mode, in any panel, opens the "Sort by" window at once in the middle of the screen, as in yazi. A second key picks the order, and its uppercase form sorts in reverse. `<Esc>` closes the window without sorting.
 
 | Key | Order | Default | Uppercase |
 |---|---|---|---|
@@ -225,21 +225,32 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 
 ## Config window
 
-`<leader>c` in normal mode, in any panel, opens the config window over the bottom right of the body, as the sort window opens. It lists every setting with its value in the session, and marks with `•` the values that differ from the config file. The status line shows how many there are.
+`<leader>c` in normal mode, in any panel, opens the config window in the middle of the screen, as the sort window opens. The which-key hints after `<leader>` alone stay in the bottom-right corner. It lists every setting with its value in the session, and marks with `•` the values that differ from the config file. The status line shows how many there are.
 
 ```
-│                          │┃        ┏ Config ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-│                          │┃        ┃ Terms added to every search  (none)                                     ┃
-│                          │┃        ┃ Pages per batch              4                                          ┃
-│                          │┃        ┃ History entries kept         40                                         ┃
-│                          │┃        ┃ Legality formats             standard, pioneer, modern, commander,...   ┃
-│                          │┃        ┃ Rulings in the split         never                                    • ┃
-│                          │┃        ┃ Rulings in the full detail   auto                                       ┃
-│                          │┃        ┃ Rulings pause (ms)           50                                         ┃
-│                          │┃        ┃ Images in the split          trigger                                    ┃
-│                          │┃        ┃ Images in the full detail    auto                                       ┃
-│                          │┃        ┃ Images pause (ms)            50                                         ┃
-╰──────────────────────────╯┗━━━━━━━━┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+╭ [1] Search ──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ r                                                                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ [2] History ─────────────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━┓╭ [0] Detail ────────────────────────────────────╮
+│r                        3│┃ Dragon Mage           {3}{R}{R}┃│ Dragon Mage                           {3}{R}{R}│
+│                 ┏ Config ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓               4/4│
+│                 ┃ Terms added to every search  (none)                                     ┃                  │
+│                 ┃ Pages per batch              4                                          ┃                  │
+│                 ┃ History entries kept         40                                         ┃s it attacks. When│
+│                 ┃ Legality formats             standard, pioneer, modern, commander,...   ┃target non-Dragon │
+│                 ┃ Rulings in the split         never                                    • ┃. (An exerted     │
+│                 ┃ Rulings in the full detail   auto                                       ┃our next untap    │
+│                 ┃ Rulings pause (ms)           50                                         ┃                  │
+│                 ┃ Images in the split          trigger                                    ┃                  │
+│                 ┃ Images in the full detail    auto                                       ┃e final trial is  │
+│                 ┃ Images pause (ms)            50                                         ┃etion.            │
+│                 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛                  │
+│                          │┃                                ┃│ standard   not legal                           │
+│                          │┃                                ┃│ pioneer    legal                               │
+│                          │┃                                ┃│ modern     legal                               │
+│                          │┃                                ┃│ commander  legal                               │
+│                          │┃                                ┃│ legacy     legal                               │
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
  NORMAL  │ Config │ 1 changed               j/k move · ⇥ next value · i/a edit · ⏎ save · <Esc> keep · q cancel
 ```
 
