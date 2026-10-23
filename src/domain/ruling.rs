@@ -8,3 +8,14 @@ pub struct Ruling {
     /// The ruling's text.
     pub comment: String,
 }
+
+/// What is known of one card's rulings.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RulingsState {
+    /// They are being fetched, or will be shortly.
+    Loading,
+    /// They arrived. An empty list means the card has none.
+    Loaded(Vec<Ruling>),
+    /// Fetching them failed with this message.
+    Failed(String),
+}

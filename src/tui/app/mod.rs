@@ -314,7 +314,7 @@ impl App {
         let width = usize::from(rect.width.saturating_sub(3));
         let card = self.selection().map(|s| s.card.clone());
         let formats = self.config.detail.formats.clone();
-        self.detail.show(card.as_ref(), &formats, width);
+        self.detail.show(card.as_ref(), &formats, None, width);
     }
 
     /// Checks `detail.formats` against the formats the first loaded card reports.
