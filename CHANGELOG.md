@@ -27,6 +27,7 @@ All notable changes to this project are documented in this file, newest release 
 - Parser from Scryfall Card objects to domain cards, tested on recorded cards of the normal, transform, modal double-faced, adventure, split and land layouts.
 - Scryfall HTTP client sending the `scry/<version>` User-Agent and Accept headers through the throttle. Error objects keep Scryfall's details, and a 429 pauses all requests. A stateful fake of the search API backs the tests.
 - `CardSearch` contract for search sources, and `ApiSearch` sending queries to Scryfall unchanged. A search with no match gives an empty page with Scryfall's message.
+- `CardRulings` contract for a card's rulings, which `ApiSearch` fetches from Scryfall's `/cards/<id>/rulings` through the same throttle as the search. The fake answers rulings requests, and a recording of Glorybringer's rulings backs a parse test.
 - Config file `~/.config/scry/config.toml` with `search.max_pages`, `history.max_entries` and `detail.formats`. Unknown keys and invalid values stop `scry` with an error naming the key.
 - Batch loading of search results: up to `search.max_pages` pages at a time, retrying after rate-limit pauses and stopping at the last page or on a failure.
 - Session cache of search results keyed by the exact query text. A cached query sends no request, a failed one is loaded again, and a paused one resumes from its next page.

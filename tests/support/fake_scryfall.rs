@@ -1,6 +1,8 @@
-//! A stateful fake of the Scryfall search API.
+//! A stateful fake of the Scryfall search and rulings API.
 //!
-//! The fake holds a list of cards and answers `GET /cards/search` from it. It supports a
+//! The fake holds a list of cards and answers `GET /cards/search` from it. `GET
+//! /cards/<id>/rulings` answers the rulings set for that card, none by default, and a 404
+//! Error object for an id none of the cards has. It supports a
 //! documented subset of the query language: every whitespace-separated term must appear in
 //! the card name, ignoring case. Parentheses around terms are dropped. A term containing `:` is ignored with a warning, as Scryfall
 //! warns about expressions it cannot use.
@@ -13,11 +15,12 @@
 //! Pages, totals, `next_page`, no-match errors and 429 responses are all derived from the
 //! fake's configured state.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, path_regex};
 use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 
 /// The details Scryfall sends when a search matches nothing.
@@ -42,6 +45,8 @@ struct State {
     fail_page: Option<usize>,
     last_request: Option<Instant>,
     received: Vec<Received>,
+    rulings: HashMap<String, Vec<Value>>,
+    rulings_received: Vec<Received>,
     base_url: String,
 }
 
@@ -73,6 +78,16 @@ pub fn card_named(name: &str) -> Value {
     card
 }
 
+/// A Ruling object published on `published_at`, an ISO date, saying `comment`.
+pub fn ruling(published_at: &str, comment: &str) -> Value {
+    json!({
+        "object": "ruling",
+        "source": "wotc",
+        "published_at": published_at,
+        "comment": comment,
+    })
+}
+
 /// A card named `name` first released on `released_at`, an ISO date such as `2024-11-15`.
 pub fn card_released(name: &str, released_at: &str) -> Value {
     let mut card = card_named(name);
@@ -92,12 +107,19 @@ impl FakeScryfall {
                 fail_page: None,
                 last_request: None,
                 received: Vec::new(),
+                rulings: HashMap::new(),
+                rulings_received: Vec::new(),
                 base_url: server.uri(),
             })),
         };
         Mock::given(method("GET"))
             .and(path("/cards/search"))
             .respond_with(fake.clone())
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex(r"^/cards/[^/]+/rulings$"))
+            .respond_with(FakeRulings(fake.clone()))
             .mount(&server)
             .await;
         (server, fake)
@@ -123,9 +145,42 @@ impl FakeScryfall {
         self.state.lock().unwrap().received.clone()
     }
 
+    /// Answers the rulings request for the card with id `card_id` with `rulings`.
+    pub fn set_rulings(&self, card_id: &str, rulings: Vec<Value>) {
+        self.state
+            .lock()
+            .unwrap()
+            .rulings
+            .insert(card_id.to_owned(), rulings);
+    }
+
+    /// Returns the rulings requests received so far.
+    pub fn rulings_received(&self) -> Vec<Received> {
+        self.state.lock().unwrap().rulings_received.clone()
+    }
+
     /// Returns the number of search requests received so far.
     pub fn request_count(&self) -> usize {
         self.state.lock().unwrap().received.len()
+    }
+}
+
+fn received(request: &Request) -> Received {
+    let header = |name: &str| {
+        request
+            .headers
+            .get(name)
+            .and_then(|v| v.to_str().ok())
+            .map(str::to_owned)
+    };
+    Received {
+        path_and_query: format!(
+            "{}?{}",
+            request.url.path(),
+            request.url.query().unwrap_or_default()
+        ),
+        user_agent: header("user-agent"),
+        accept: header("accept"),
     }
 }
 
@@ -141,22 +196,7 @@ fn error(status: u16, code: &str, details: &str) -> ResponseTemplate {
 impl Respond for FakeScryfall {
     fn respond(&self, request: &Request) -> ResponseTemplate {
         let mut state = self.state.lock().unwrap();
-        let header = |name: &str| {
-            request
-                .headers
-                .get(name)
-                .and_then(|v| v.to_str().ok())
-                .map(str::to_owned)
-        };
-        state.received.push(Received {
-            path_and_query: format!(
-                "{}?{}",
-                request.url.path(),
-                request.url.query().unwrap_or_default()
-            ),
-            user_agent: header("user-agent"),
-            accept: header("accept"),
-        });
+        state.received.push(received(request));
         let now = Instant::now();
         let too_fast = matches!(
             (state.min_interval, state.last_request),
@@ -260,5 +300,33 @@ impl Respond for FakeScryfall {
             body["warnings"] = json!(warnings);
         }
         ResponseTemplate::new(200).set_body_json(body)
+    }
+}
+
+/// Answers the rulings requests of a [`FakeScryfall`].
+struct FakeRulings(FakeScryfall);
+
+impl Respond for FakeRulings {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let mut state = self.0.state.lock().unwrap();
+        state.rulings_received.push(received(request));
+        let id = request
+            .url
+            .path_segments()
+            .and_then(|mut s| s.nth(1))
+            .unwrap_or_default();
+        if !state.cards.iter().any(|card| card["id"] == id) {
+            return error(
+                404,
+                "not_found",
+                "No card found with the given ID or set code and collector number.",
+            );
+        }
+        let data = state.rulings.get(id).cloned().unwrap_or_default();
+        ResponseTemplate::new(200).set_body_json(json!({
+            "object": "list",
+            "has_more": false,
+            "data": data,
+        }))
     }
 }

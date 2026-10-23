@@ -5,10 +5,11 @@ use std::time::Duration;
 
 use reqwest::header::{ACCEPT, HeaderMap, HeaderValue, RETRY_AFTER};
 use reqwest::{StatusCode, Url};
+use serde::de::DeserializeOwned;
 
 use crate::net::throttle::Throttle;
 use crate::scryfall::error::ScryfallError;
-use crate::scryfall::wire::{WireCardList, WireError};
+use crate::scryfall::wire::{WireCardList, WireError, WireRulingList};
 
 /// The API's base URL.
 pub const BASE_URL: &str = "https://api.scryfall.com";
@@ -107,6 +108,20 @@ impl ScryfallClient {
         url
     }
 
+    /// Returns the URL of the rulings on the card with printing id `card_id`.
+    ///
+    /// # Panics
+    /// Panics if the base URL cannot have a path, which no `http` URL lacks.
+    pub fn rulings_url(&self, card_id: &str) -> Url {
+        let mut url = self.base_url.clone();
+        url.set_query(None);
+        url.path_segments_mut()
+            .expect("an http URL has path segments")
+            .clear()
+            .extend(["cards", card_id, "rulings"]);
+        url
+    }
+
     /// Fetches the card list at `url`, such as a search URL or a `next_page` URI.
     ///
     /// The request waits for the throttle. A 429 response pauses every later request for the
@@ -117,6 +132,19 @@ impl ScryfallClient {
     /// [`ScryfallError::RateLimited`] for a 429, [`ScryfallError::Transport`] for network
     /// failures and [`ScryfallError::Decode`] for an unexpected body.
     pub async fn get_card_list(&self, url: Url) -> Result<WireCardList, ScryfallError> {
+        self.get(url).await
+    }
+
+    /// Fetches the rulings list at `url`, a [`ScryfallClient::rulings_url`]. It waits and
+    /// fails as [`ScryfallClient::get_card_list`] does.
+    ///
+    /// # Errors
+    /// See [`ScryfallClient::get_card_list`].
+    pub async fn get_rulings(&self, url: Url) -> Result<WireRulingList, ScryfallError> {
+        self.get(url).await
+    }
+
+    async fn get<T: DeserializeOwned>(&self, url: Url) -> Result<T, ScryfallError> {
         let (bucket, interval) = if SEARCH_BUCKET_PATHS.contains(&url.path()) {
             ("search", self.limits.search)
         } else {

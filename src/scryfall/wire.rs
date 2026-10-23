@@ -92,3 +92,19 @@ pub struct WireError {
     /// Non-fatal warnings about the request.
     pub warnings: Option<Vec<String>>,
 }
+
+/// A Ruling object. See <https://scryfall.com/docs/api/rulings>.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WireRuling {
+    /// When it was published, as `YYYY-MM-DD`.
+    pub published_at: String,
+    /// The ruling's text.
+    pub comment: String,
+}
+
+/// A List object holding rulings.
+#[derive(Debug, Clone, Deserialize)]
+pub struct WireRulingList {
+    /// The rulings, in Scryfall's order.
+    pub data: Vec<WireRuling>,
+}

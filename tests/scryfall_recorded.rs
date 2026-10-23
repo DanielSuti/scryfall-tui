@@ -10,9 +10,10 @@ use scry::domain::type_line::SUPERTYPES;
 use scry::net::throttle::Throttle;
 use scry::scryfall::client::{ACCEPT_JSON, RateLimits, ScryfallClient, USER_AGENT};
 use scry::search::api::ApiSearch;
-use scry::search::{CardSearch, SearchRequest, SortField, SortOrder};
+use scry::search::{CardRulings, CardSearch, SearchRequest, SortField, SortOrder};
 use support::dummy_scryfall::{
-    DummyScryfall, ORDER_QUERY, RECORDINGS_DIR, Recording, recorded_requests, request_key, trim,
+    DummyScryfall, GLORYBRINGER_ID, ORDER_QUERY, RECORDINGS_DIR, Recording, recorded_requests,
+    request_key, trim,
 };
 
 /// The recorder waits this long between requests: twice Scryfall's interval for searches.
@@ -84,6 +85,25 @@ async fn a_recorded_search_parses_and_no_match_gives_scryfalls_notice() {
         .await
         .unwrap();
     assert!(none.cards.is_empty() && none.notice.is_some());
+    assert!(
+        dummy.unrecorded_calls().is_empty(),
+        "{:?}",
+        dummy.unrecorded_calls()
+    );
+}
+
+#[tokio::test]
+async fn recorded_rulings_parse() {
+    let (server, dummy) = DummyScryfall::start().await;
+    let search = search_on(&server).await;
+    let rulings = search.rulings(GLORYBRINGER_ID).await.unwrap();
+    assert_eq!(rulings.len(), 5);
+    assert!(rulings.iter().all(|r| r.published_at == "2017-04-18"));
+    assert!(
+        rulings[0].comment.starts_with("You can’t exert a creature"),
+        "{}",
+        rulings[0].comment
+    );
     assert!(
         dummy.unrecorded_calls().is_empty(),
         "{:?}",

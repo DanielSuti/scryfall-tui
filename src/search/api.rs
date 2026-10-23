@@ -1,18 +1,22 @@
-//! Search through the Scryfall API.
+//! Search and rulings through the Scryfall API.
 
 use reqwest::Url;
 
+use crate::domain::ruling::Ruling;
 use crate::domain::search_results::{PageToken, SearchPage};
 use crate::scryfall::client::ScryfallClient;
 use crate::scryfall::error::ScryfallError;
-use crate::scryfall::parse::card_from_wire;
+use crate::scryfall::parse::{card_from_wire, ruling_from_wire};
 use crate::scryfall::wire::WireCardList;
-use crate::search::{BoxFuture, CardSearch, SearchError, SearchRequest, SortField, SortOrder};
+use crate::search::{
+    BoxFuture, CardRulings, CardSearch, SearchError, SearchRequest, SortField, SortOrder,
+};
 
 /// Scryfall's error code for a search that matches nothing.
 const NOT_FOUND: &str = "not_found";
 
-/// Searches with Scryfall's full query syntax by sending the query to the API unchanged.
+/// Searches with Scryfall's full query syntax by sending the query to the API unchanged, and
+/// fetches rulings. Both go through one client, so they share its rate limits.
 #[derive(Debug)]
 pub struct ApiSearch {
     client: ScryfallClient,
@@ -123,6 +127,18 @@ impl CardSearch for ApiSearch {
             let url =
                 Url::parse(&token.0).map_err(|_| SearchError::InvalidPageToken(token.0.clone()))?;
             self.fetch(url).await
+        })
+    }
+}
+
+impl CardRulings for ApiSearch {
+    fn rulings<'a>(&'a self, card_id: &'a str) -> BoxFuture<'a, Result<Vec<Ruling>, SearchError>> {
+        Box::pin(async move {
+            let list = self
+                .client
+                .get_rulings(self.client.rulings_url(card_id))
+                .await?;
+            Ok(list.data.into_iter().map(ruling_from_wire).collect())
         })
     }
 }
