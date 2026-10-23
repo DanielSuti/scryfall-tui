@@ -19,6 +19,7 @@ use crossterm::event::{KeyEvent, KeyEventKind};
 use ratatui::Frame;
 use ratatui::layout::Rect;
 use ratatui::widgets::{Clear, Paragraph, Widget};
+use ratatui_image::picker::Picker as ImagePicker;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::time::Instant;
 
@@ -119,6 +120,7 @@ pub struct App {
     theme: Theme,
     config: Config,
     services: Option<Services>,
+    image_picker: Option<ImagePicker>,
     mode: Mode,
     quit: bool,
     commands: CommandRegistry<App>,
@@ -178,6 +180,7 @@ impl App {
             theme: Theme::default(),
             config,
             services: None,
+            image_picker: None,
             mode: Mode::Normal,
             quit: false,
             commands: CommandRegistry::new(),
@@ -222,6 +225,12 @@ impl App {
         let mut app = Self::with_config(config);
         app.services = Some(services);
         app
+    }
+
+    /// Sets how card images are drawn: the terminal's graphics protocol and cell size, or
+    /// `None` when the terminal can't draw images, which hides them.
+    pub fn set_image_picker(&mut self, picker: Option<ImagePicker>) {
+        self.image_picker = picker;
     }
 
     /// Returns the configuration the app was started with.
