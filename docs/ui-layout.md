@@ -89,6 +89,54 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
  NORMAL │ [2] History │ 4 entries   ⏎ run · e edit · dd delete · <Esc> close
 ```
 
+**V6. The split with the card image**, in a terminal with a graphics protocol (`▓` marks the image). The image stands at the top right and the text wraps beside it, then takes the full width below it. The image scrolls with the text.
+```
+╭ [2] History ─────────────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━┓╭ [0] Detail ────────────────────────────────────╮
+│r                        3│┃ Dragon Mage           {3}{R}{R}┃│ Dragon Mage     {3}{R}{R}  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃ Glorybringer          {3}{R}{R}┃│ Creature — Dragon     4/4  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃ Shivan Dragon         {3}{R}{R}┃│                            ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ Flying, haste              ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ You may exert this         ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ creature as it attacks.    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ When you do, it deals 4    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ damage to target           ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ non-Dragon creature an     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ opponent controls. (An     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ exerted creature won't     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ untap during your next     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ untap step.)               ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│                                                │
+│                          │┃                                ┃│ What the initiates face in the final trial is  │
+│                          │┃                                ┃│ completely at Hazoret's discretion.            │
+│                          │┃                                ┃│                                                │
+│                          │┃                                ┃│ standard   not legal                           │
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
+```
+
+**V7. The full detail with the card image** on the left at the panel's height, as on scryfall.com. The text scrolls right of it.
+```
+╭ [2] History ─────────────╮┏ [3] Detail ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+│r                        3│┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   Glorybringer                                {3}{R}{R}┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   Creature — Dragon                                 4/4┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   Flying, haste                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   You may exert this creature as it attacks. When you  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   do, it deals 4 damage to target non-Dragon creature  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   an opponent controls. (An exerted creature won't     ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   untap during your next untap step.)                  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   What the initiates face in the final trial is        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   completely at Hazoret's discretion.                  ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   standard   not legal    historic   legal             ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   pioneer    legal        alchemy    not legal         ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   modern     legal        brawl      legal             ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   commander  legal        timeless   legal             ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓   legacy     legal                                     ┃
+│                          │┃ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓                                                        ┃
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+```
+
 **Double-faced rows**
 ```
  Delver of Secrets // Insectile Aberration   {U} // —             Creature // Creature
@@ -187,4 +235,7 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
   ```
 
   Rulings take one Scryfall request per card and are kept for the session; printings of one card share them. With `detail.rulings.mode = "auto"` they are fetched in the split and the full detail once the cursor has rested on the card for `detail.rulings.pause_ms`, so holding `j` doesn't send a request per card. With `"full_detail"` they are fetched only in the full detail, as soon as it opens, and the split shows them only when they were already fetched. With `"never"` they are never fetched and the detail has no rulings section. Meanwhile the detail says `Rulings: loading...`, a card without rulings says `No rulings`, and a failure shows its message; the failed fetch is retried when the card is shown again.
+- **Card image.** In a terminal with a graphics protocol the detail shows the card's front-face image. Kitty and Ghostty use kitty's unicode placeholders, foot and Windows Terminal sixel, iTerm2 and WezTerm iTerm2's inline images, also inside tmux. In the split (V6) it takes two fifths of the detail's width at the top right; in the full detail (V7) the panel's height on the left, at most half its width. Its size follows the card's 488×680 pixels and the terminal's cell size. The detail has no image when the text beside it would be narrower than 24 columns in the split or 30 in the full detail, and none in a terminal without a graphics protocol, such as Alacritty.
+
+  `detail.images` decides when images are fetched, as `detail.rulings` does for rulings: `"auto"` in the split and the full detail once the cursor has rested for `pause_ms`, `"full_detail"` only in the full detail and at once, the split then showing images already fetched, and `"never"`. Meanwhile the box says `Loading image...`, and a failure shows `Image:` and its message, retried when the card is shown again. The last 50 images are kept for the session. Each image is scaled into its box off the main thread, again when the box changes size. The which-key popup, the pickers and the history overlay hide the image while they are open, as Yazi hides its preview under popups, because sixel and iTerm2 images would show through them.
 - **History** shows each query and its result count, newest first.

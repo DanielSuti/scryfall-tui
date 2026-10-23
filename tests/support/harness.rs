@@ -66,7 +66,8 @@ impl Harness {
         let api = Arc::new(ApiSearch::new(client));
         let services = Services {
             search: api.clone(),
-            rulings: api,
+            rulings: api.clone(),
+            images: api,
             events,
         };
         let mut app = App::with_services(config, services);

@@ -47,7 +47,7 @@ Press `<Space>sk` at any time to search the list of every key. Press `<Space>` a
 
 - **[1] Search** holds the query.
 - **[2] History** lists past queries with their result counts.
-- **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`. The details show the card's text, with the flavor text in italics, its legality in your formats and its rulings.
+- **[3] Results** lists the matching cards: name, mana cost and card types. It is replaced by the card's details after `d`, or shares the space with them after `<Enter>`. The details show the card's text, with the flavor text in italics, its legality in your formats and its rulings, and in a terminal that can draw images, the card's image.
 - **The status line** shows the mode, the focused panel, how many cards are loaded, the sort order, messages, and the most useful keys for the focused panel.
 
 The focused panel has a heavy green border, and its selected line is bold on a blue background (marked `▌` in the drawing above). Without focus, the results mark the selected card with `▌`, and the history shows no selection. The number in each title is the key that focuses it. The full layout, with mockups of every state, is in [docs/ui-layout.md](docs/ui-layout.md).
@@ -171,7 +171,7 @@ pause_ms = 300                  # auto mode: how long the cursor rests on a card
 
 Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split doesn't fetch every card on the way.
 
-Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol, such as kitty, Ghostty, WezTerm, foot or iTerm2. At start-up `scry` asks the terminal which protocol it supports; `mode = "never"` skips that question.
+Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `mode = "never"` skips that question. Terminals without one, such as Alacritty, show no image.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 

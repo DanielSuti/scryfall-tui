@@ -42,4 +42,12 @@ tui (event loop, App, layout, views, keymap, widgets, pickers)
 2. If they are missing, `detail.rulings` decides when to fetch: after `pause_ms` through a deadline returned by `App::next_deadline`, which the event loop turns into a tick, or at once.
 3. A background task fetches them through `CardRulings`, and they arrive as an `AppEvent`.
 
+## Images flow
+
+1. At start-up, unless `detail.images.mode` is `never`, `tui::graphics::detect` asks the terminal for a graphics protocol and its cell size through `ratatui-image`, as Yazi picks its image adapter. Without kitty, sixel or iTerm2 support the app gets no picker and shows no images.
+2. Whenever the detail shows a card, the app computes the image box from the panel and the cell size, and the same `LoadSchedule` as the rulings decides when to fetch, keyed by the printing id.
+3. A background task fetches the bytes through `CardImages`, and they arrive as an `AppEvent`. The session keeps the last 50.
+4. A blocking task decodes them and encodes them for the protocol at the box's size. Only the shown card's encoding is kept; a result for another card or size is dropped.
+5. Drawing puts the encoded image into the box as a sliced image, so the split can scroll it partly out of view. Popups hide it.
+
 The layout and keys are described in [ui-layout.md](ui-layout.md).

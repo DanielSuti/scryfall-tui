@@ -1,0 +1,28 @@
+---
+source: tests/app_images.rs
+expression: screen_with_image(&h)
+---
+╭ [1] Search ──────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ r                                                                                                            │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+╭ [2] History ─────────────╮┏ [3] Results ━━━━━━━━━━━━━━━━━━━┓╭ [0] Detail ────────────────────────────────────╮
+│r                        3│┃ Dragon Mage           {3}{R}{R}┃│ Dragon Mage     {3}{R}{R}  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃ Glorybringer          {3}{R}{R}┃│ Creature — Dragon     4/4  ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃ Shivan Dragon         {3}{R}{R}┃│                            ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ Flying, haste              ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ You may exert this         ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ creature as it attacks.    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ When you do, it deals 4    ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ damage to target           ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ non-Dragon creature an     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ opponent controls. (An     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ exerted creature won't     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ untap during your next     ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│ untap step.)               ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓  │
+│                          │┃                                ┃│                                                │
+│                          │┃                                ┃│ What the initiates face in the final trial is  │
+│                          │┃                                ┃│ completely at Hazoret's discretion.            │
+│                          │┃                                ┃│                                                │
+│                          │┃                                ┃│ standard   not legal                           │
+╰──────────────────────────╯┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛╰────────────────────────────────────────────────╯
+ NORMAL  │ [3] Results │ 3 of 3 loaded │ by name, A → Z                                       d detail · q back
