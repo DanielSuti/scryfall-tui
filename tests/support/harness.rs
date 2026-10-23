@@ -21,6 +21,7 @@ use super::fake_scryfall::FakeScryfall;
 pub const NO_LIMITS: RateLimits = RateLimits {
     search: Duration::ZERO,
     other: Duration::ZERO,
+    images: Duration::ZERO,
     rate_limited_pause: Duration::from_millis(50),
 };
 

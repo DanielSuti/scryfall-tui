@@ -1,8 +1,10 @@
-//! A stateful fake of the Scryfall search and rulings API.
+//! A stateful fake of the Scryfall search and rulings API and of its image servers.
 //!
 //! The fake holds a list of cards and answers `GET /cards/search` from it. `GET
 //! /cards/<id>/rulings` answers the rulings set for that card, none by default, and a 404
-//! Error object for an id none of the cards has. It supports a
+//! Error object for an id none of the cards has. Every `image_uris.normal` it serves, on the
+//! card and on its faces, points at the fake's `/images/`, which answers
+//! [`CARD_IMAGE_FIXTURE`] for every image, so no test reaches Scryfall's image servers. It supports a
 //! documented subset of the query language: every whitespace-separated term must appear in
 //! the card name, ignoring case. Parentheses around terms are dropped. A term containing `:` is ignored with a warning, as Scryfall
 //! warns about expressions it cannot use.
@@ -26,6 +28,12 @@ use wiremock::{Mock, MockServer, Request, Respond, ResponseTemplate};
 /// The details Scryfall sends when a search matches nothing.
 pub const NOT_FOUND_DETAILS: &str = "Your query didn’t match any cards. Adjust your search terms or refer to the syntax guide at https://scryfall.com/docs/reference";
 
+/// The PNG every image request is answered with, 49×68 pixels.
+pub const CARD_IMAGE_FIXTURE: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/tests/fixtures/images/card.png"
+);
+
 /// A request the fake received.
 #[derive(Debug, Clone)]
 pub struct Received {
@@ -48,6 +56,8 @@ struct State {
     rulings: HashMap<String, Vec<Value>>,
     failing_rulings: Vec<String>,
     rulings_received: Vec<Received>,
+    failing_images: HashMap<String, u16>,
+    images_received: Vec<Received>,
     base_url: String,
 }
 
@@ -115,6 +125,8 @@ impl FakeScryfall {
                 rulings: HashMap::new(),
                 failing_rulings: Vec::new(),
                 rulings_received: Vec::new(),
+                failing_images: HashMap::new(),
+                images_received: Vec::new(),
                 base_url: server.uri(),
             })),
         };
@@ -126,6 +138,11 @@ impl FakeScryfall {
         Mock::given(method("GET"))
             .and(path_regex(r"^/cards/[^/]+/rulings$"))
             .respond_with(FakeRulings(fake.clone()))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_regex(r"^/images/[^/]+\.png$"))
+            .respond_with(FakeImages(fake.clone()))
             .mount(&server)
             .await;
         (server, fake)
@@ -175,6 +192,27 @@ impl FakeScryfall {
         self.state.lock().unwrap().rulings_received.clone()
     }
 
+    /// Answers the image request for the card with id `card_id` with `status`, or normally
+    /// again when `status` is `None`. A 429 carries no `Retry-After`, so the client pauses for
+    /// its own `rate_limited_pause`.
+    pub fn fail_image(&self, card_id: &str, status: Option<u16>) {
+        let mut state = self.state.lock().unwrap();
+        match status {
+            Some(status) => state.failing_images.insert(card_id.to_owned(), status),
+            None => state.failing_images.remove(card_id),
+        };
+    }
+
+    /// Returns the image requests received so far.
+    pub fn images_received(&self) -> Vec<Received> {
+        self.state.lock().unwrap().images_received.clone()
+    }
+
+    /// Returns the URL the fake serves the front image of the card with id `card_id` at.
+    pub fn image_url(&self, card_id: &str) -> String {
+        image_url(&self.state.lock().unwrap().base_url, card_id)
+    }
+
     /// Returns the number of search requests received so far.
     pub fn request_count(&self) -> usize {
         self.state.lock().unwrap().received.len()
@@ -198,6 +236,34 @@ fn received(request: &Request) -> Received {
         user_agent: header("user-agent"),
         accept: header("accept"),
     }
+}
+
+/// The URL of image `name` on the fake at `base_url`.
+fn image_url(base_url: &str, name: &str) -> String {
+    format!("{base_url}/images/{name}.png")
+}
+
+/// Returns `card` with its image URIs pointing at the fake at `base_url`: the card's at
+/// `<id>.png`, and on a card with one image per face, the first face's there too and every
+/// other face's at `<id>-face<n>.png`.
+fn with_local_images(card: &Value, base_url: &str) -> Value {
+    let mut card = card.clone();
+    let id = card["id"].as_str().unwrap_or_default().to_owned();
+    if card["image_uris"].is_object() {
+        card["image_uris"]["normal"] = json!(image_url(base_url, &id));
+    }
+    if let Some(faces) = card["card_faces"].as_array_mut() {
+        for (index, face) in faces.iter_mut().enumerate() {
+            if face["image_uris"].is_object() {
+                let name = match index {
+                    0 => id.clone(),
+                    n => format!("{id}-face{n}"),
+                };
+                face["image_uris"]["normal"] = json!(image_url(base_url, &name));
+            }
+        }
+    }
+    card
 }
 
 fn error(status: u16, code: &str, details: &str) -> ResponseTemplate {
@@ -288,11 +354,11 @@ impl Respond for FakeScryfall {
             return error(404, "not_found", NOT_FOUND_DETAILS);
         }
         let start = (page - 1) * state.page_size;
-        let data: Vec<&Value> = matching
+        let data: Vec<Value> = matching
             .iter()
             .skip(start)
             .take(state.page_size)
-            .copied()
+            .map(|card| with_local_images(card, &state.base_url))
             .collect();
         let has_more = start + data.len() < matching.len();
         let next_page = has_more.then(|| {
@@ -347,5 +413,32 @@ impl Respond for FakeRulings {
             "has_more": false,
             "data": data,
         }))
+    }
+}
+
+/// Answers the image requests of a [`FakeScryfall`].
+struct FakeImages(FakeScryfall);
+
+impl Respond for FakeImages {
+    fn respond(&self, request: &Request) -> ResponseTemplate {
+        let mut state = self.0.state.lock().unwrap();
+        state.images_received.push(received(request));
+        let name = request
+            .url
+            .path_segments()
+            .and_then(|mut s| s.nth(1))
+            .and_then(|file| file.strip_suffix(".png"))
+            .unwrap_or_default();
+        let card_id = name.split("-face").next().unwrap_or_default();
+        if !state.cards.iter().any(|card| card["id"] == card_id) {
+            // The image servers answer an unknown image with a page that is no Error object.
+            return ResponseTemplate::new(404).set_body_string("<Error>NoSuchKey</Error>");
+        }
+        if let Some(&status) = state.failing_images.get(card_id) {
+            return ResponseTemplate::new(status).set_body_string("<Error>Failed</Error>");
+        }
+        ResponseTemplate::new(200)
+            .insert_header("content-type", "image/png")
+            .set_body_bytes(std::fs::read(CARD_IMAGE_FIXTURE).unwrap())
     }
 }

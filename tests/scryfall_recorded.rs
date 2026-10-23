@@ -22,6 +22,7 @@ const RECORDING_INTERVAL: Duration = Duration::from_secs(1);
 const LOCAL: RateLimits = RateLimits {
     search: Duration::ZERO,
     other: Duration::ZERO,
+    images: Duration::ZERO,
     rate_limited_pause: Duration::ZERO,
 };
 

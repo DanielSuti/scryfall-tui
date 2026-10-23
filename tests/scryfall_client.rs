@@ -4,14 +4,17 @@ mod support;
 
 use std::time::{Duration, Instant};
 
-use scry::scryfall::client::{RateLimits, ScryfallClient, USER_AGENT};
+use scry::scryfall::client::{ACCEPT_IMAGE, RateLimits, ScryfallClient, USER_AGENT};
 use scry::scryfall::error::ScryfallError;
-use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named, ruling};
+use support::fake_scryfall::{
+    CARD_IMAGE_FIXTURE, FakeScryfall, NOT_FOUND_DETAILS, card_named, ruling,
+};
 
 fn unthrottled(pause: Duration) -> RateLimits {
     RateLimits {
         search: Duration::ZERO,
         other: Duration::ZERO,
+        images: Duration::ZERO,
         rate_limited_pause: pause,
     }
 }
@@ -144,4 +147,72 @@ async fn rulings_are_fetched_by_card_id_with_the_headers() {
         matches!(err, ScryfallError::Api { status: 404, .. }),
         "{err}"
     );
+}
+
+#[tokio::test]
+async fn images_are_fetched_with_the_headers() {
+    let (server, fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
+    let client = client_for(&server, unthrottled(Duration::ZERO)).await;
+    let url = fake.image_url("id-glorybringer").parse().unwrap();
+    let bytes = client.get_image(url).await.unwrap();
+    assert_eq!(bytes, std::fs::read(CARD_IMAGE_FIXTURE).unwrap());
+    let received = fake.images_received();
+    assert_eq!(received[0].path_and_query, "/images/id-glorybringer.png?");
+    assert_eq!(received[0].user_agent.as_deref(), Some(USER_AGENT));
+    assert_eq!(received[0].accept.as_deref(), Some(ACCEPT_IMAGE));
+}
+
+#[tokio::test]
+async fn a_failed_image_is_an_error_and_a_429_pauses_later_requests() {
+    let pause = Duration::from_millis(300);
+    let (server, fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
+    let client = client_for(&server, unthrottled(pause)).await;
+    let missing = fake.image_url("no-such-id").parse().unwrap();
+    let err = client.get_image(missing).await.unwrap_err();
+    assert_eq!(
+        err.to_string(),
+        "unexpected Scryfall response (HTTP 404): not an image"
+    );
+    fake.fail_image("id-glorybringer", Some(429));
+    let url: reqwest::Url = fake.image_url("id-glorybringer").parse().unwrap();
+    let err = client.get_image(url.clone()).await.unwrap_err();
+    assert!(
+        matches!(err, ScryfallError::RateLimited { retry_after } if retry_after == pause),
+        "{err:?}"
+    );
+    fake.fail_image("id-glorybringer", None);
+    let before = Instant::now();
+    client
+        .get_card_list(client.search_url("glory", "name", "auto"))
+        .await
+        .unwrap();
+    assert!(
+        before.elapsed() >= Duration::from_millis(250),
+        "the pause holds every request: {:?}",
+        before.elapsed()
+    );
+    client.get_image(url).await.unwrap();
+}
+
+#[tokio::test]
+async fn image_requests_are_spaced_in_their_own_bucket() {
+    let (server, fake) = FakeScryfall::start(vec![card_named("Glorybringer")]).await;
+    let limits = RateLimits {
+        images: Duration::from_millis(200),
+        ..unthrottled(Duration::ZERO)
+    };
+    let client = client_for(&server, limits).await;
+    let url: reqwest::Url = fake.image_url("id-glorybringer").parse().unwrap();
+    let before = Instant::now();
+    client.get_image(url.clone()).await.unwrap();
+    client
+        .get_rulings(client.rulings_url("id-glorybringer"))
+        .await
+        .unwrap();
+    assert!(
+        before.elapsed() < Duration::from_millis(200),
+        "rulings don't wait"
+    );
+    client.get_image(url).await.unwrap();
+    assert!(before.elapsed() >= Duration::from_millis(200));
 }

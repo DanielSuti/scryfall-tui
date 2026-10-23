@@ -7,6 +7,9 @@ use crate::domain::type_line::TypeLine;
 pub const FACE_SEPARATOR: &str = " // ";
 /// Shown for a face without a mana cost or type line.
 pub const MISSING: &str = "—";
+/// The width and height in pixels of the image at [`Card::image_url`], so the image's space
+/// can be laid out before it arrives.
+pub const CARD_IMAGE_PIXELS: (u32, u32) = (488, 680);
 
 /// One face of a card. A single-faced card has one face.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -68,6 +71,7 @@ pub struct Card {
     layout: String,
     faces: Vec<Face>,
     legalities: Legalities,
+    image_url: Option<String>,
 }
 
 impl Card {
@@ -89,7 +93,15 @@ impl Card {
             layout: layout.into(),
             faces,
             legalities,
+            image_url: None,
         }
+    }
+
+    /// Sets the URL of the front face's image, [`CARD_IMAGE_PIXELS`] in size.
+    #[must_use]
+    pub fn with_image_url(mut self, url: Option<String>) -> Self {
+        self.image_url = url;
+        self
     }
 
     /// Returns the printing id.
@@ -115,6 +127,11 @@ impl Card {
     /// Returns the legalities.
     pub fn legalities(&self) -> &Legalities {
         &self.legalities
+    }
+
+    /// Returns the URL of the front face's image, or `None` when the source has none.
+    pub fn image_url(&self) -> Option<&str> {
+        self.image_url.as_deref()
     }
 
     fn join(&self, value: impl Fn(&Face) -> String) -> String {

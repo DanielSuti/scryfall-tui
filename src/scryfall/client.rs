@@ -15,8 +15,10 @@ use crate::scryfall::wire::{WireCardList, WireError, WireRulingList};
 pub const BASE_URL: &str = "https://api.scryfall.com";
 /// The User-Agent Scryfall requires: the application name and version.
 pub const USER_AGENT: &str = concat!("scry/", env!("CARGO_PKG_VERSION"));
-/// The Accept header sent with every request.
+/// The Accept header sent with every API request.
 pub const ACCEPT_JSON: &str = "application/json";
+/// The Accept header sent with every image request.
+pub const ACCEPT_IMAGE: &str = "image/*";
 /// How long one request may take before it fails.
 pub const REQUEST_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -35,22 +37,27 @@ pub struct RateLimits {
     pub search: Duration,
     /// Interval for every other endpoint.
     pub other: Duration,
+    /// Interval for card images, which come from Scryfall's image servers.
+    pub images: Duration,
     /// Pause after a 429 response without a `Retry-After` header.
     pub rate_limited_pause: Duration,
 }
 
 impl RateLimits {
     /// Scryfall's documented limits: 2 requests per second for search-like endpoints,
-    /// 10 per second for the rest, and access limited for 30 seconds after a 429.
+    /// 10 per second for the rest, and access limited for 30 seconds after a 429. The image
+    /// servers have no documented limit; images are spaced as the other endpoints are.
     pub const SCRYFALL: RateLimits = RateLimits {
         search: Duration::from_millis(500),
         other: Duration::from_millis(100),
+        images: Duration::from_millis(100),
         rate_limited_pause: Duration::from_secs(30),
     };
 }
 
-/// A client for the Scryfall API. Every request goes through one throttle and carries the
-/// [`USER_AGENT`] and [`ACCEPT_JSON`] headers.
+/// A client for the Scryfall API and its card images. Every request goes through one throttle
+/// and carries the [`USER_AGENT`] header, and [`ACCEPT_JSON`] or, for images,
+/// [`ACCEPT_IMAGE`].
 #[derive(Debug)]
 pub struct ScryfallClient {
     http: reqwest::Client,
@@ -144,6 +151,32 @@ impl ScryfallClient {
         self.get(url).await
     }
 
+    /// Fetches the image at `url`, an absolute image URI from a Card object, and returns its
+    /// bytes. It waits for the throttle and pauses on a 429 as
+    /// [`ScryfallClient::get_card_list`] does.
+    ///
+    /// # Errors
+    /// Returns [`ScryfallError::RateLimited`] for a 429, [`ScryfallError::Transport`] for
+    /// network failures, and [`ScryfallError::Api`] or [`ScryfallError::Decode`] for any other
+    /// failed status.
+    pub async fn get_image(&self, url: Url) -> Result<Vec<u8>, ScryfallError> {
+        self.throttle.acquire("images", self.limits.images).await;
+        let request = self.http.get(url).header(ACCEPT, ACCEPT_IMAGE);
+        let response = self.send(request).await?;
+        let status = response.status();
+        if status.is_success() {
+            return Ok(response.bytes().await?.to_vec());
+        }
+        // The image servers answer most failures without an Error object.
+        Err(match error_from_body(status, &response.text().await?) {
+            ScryfallError::Decode { status, .. } => ScryfallError::Decode {
+                status,
+                message: "not an image".to_owned(),
+            },
+            err => err,
+        })
+    }
+
     async fn get<T: DeserializeOwned>(&self, url: Url) -> Result<T, ScryfallError> {
         let (bucket, interval) = if SEARCH_BUCKET_PATHS.contains(&url.path()) {
             ("search", self.limits.search)
@@ -151,9 +184,26 @@ impl ScryfallClient {
             ("other", self.limits.other)
         };
         self.throttle.acquire(bucket, interval).await;
-        let response = self.http.get(url).send().await?;
+        let response = self.send(self.http.get(url)).await?;
         let status = response.status();
-        if status == StatusCode::TOO_MANY_REQUESTS {
+        let body = response.text().await?;
+        if status.is_success() {
+            return serde_json::from_str(&body).map_err(|err| ScryfallError::Decode {
+                status: status.as_u16(),
+                message: err.to_string(),
+            });
+        }
+        Err(error_from_body(status, &body))
+    }
+
+    /// Sends `request`. A 429 response pauses every later request for the `Retry-After` time,
+    /// or [`RateLimits::rate_limited_pause`] when the header is missing.
+    async fn send(
+        &self,
+        request: reqwest::RequestBuilder,
+    ) -> Result<reqwest::Response, ScryfallError> {
+        let response = request.send().await?;
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
             let retry_after = response
                 .headers()
                 .get(RETRY_AFTER)
@@ -163,24 +213,23 @@ impl ScryfallClient {
             self.throttle.pause(retry_after);
             return Err(ScryfallError::RateLimited { retry_after });
         }
-        let body = response.text().await?;
-        if status.is_success() {
-            return serde_json::from_str(&body).map_err(|err| ScryfallError::Decode {
-                status: status.as_u16(),
-                message: err.to_string(),
-            });
-        }
-        match serde_json::from_str::<WireError>(&body) {
-            Ok(error) => Err(ScryfallError::Api {
-                status: error.status,
-                code: error.code,
-                details: error.details,
-                warnings: error.warnings.unwrap_or_default(),
-            }),
-            Err(err) => Err(ScryfallError::Decode {
-                status: status.as_u16(),
-                message: err.to_string(),
-            }),
-        }
+        Ok(response)
+    }
+}
+
+/// Returns the error for a failed `status` with `body`: Scryfall's Error object when the body
+/// is one, or [`ScryfallError::Decode`].
+fn error_from_body(status: StatusCode, body: &str) -> ScryfallError {
+    match serde_json::from_str::<WireError>(body) {
+        Ok(error) => ScryfallError::Api {
+            status: error.status,
+            code: error.code,
+            details: error.details,
+            warnings: error.warnings.unwrap_or_default(),
+        },
+        Err(err) => ScryfallError::Decode {
+            status: status.as_u16(),
+            message: err.to_string(),
+        },
     }
 }

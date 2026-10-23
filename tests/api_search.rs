@@ -6,12 +6,15 @@ use std::time::Duration;
 
 use scry::scryfall::client::{RateLimits, ScryfallClient};
 use scry::search::api::ApiSearch;
-use scry::search::{CardSearch, SearchRequest, SortField, SortOrder};
-use support::fake_scryfall::{FakeScryfall, NOT_FOUND_DETAILS, card_named, card_released};
+use scry::search::{CardImages, CardSearch, SearchError, SearchRequest, SortField, SortOrder};
+use support::fake_scryfall::{
+    CARD_IMAGE_FIXTURE, FakeScryfall, NOT_FOUND_DETAILS, card_named, card_released, fixture,
+};
 
 const NO_LIMITS: RateLimits = RateLimits {
     search: Duration::ZERO,
     other: Duration::ZERO,
+    images: Duration::ZERO,
     rate_limited_pause: Duration::ZERO,
 };
 
@@ -260,4 +263,29 @@ mod batches {
         assert_eq!(log[1], "failed: Something went wrong on our end.");
         assert_eq!(next, None);
     }
+}
+
+#[tokio::test]
+async fn found_cards_carry_their_image_which_the_search_fetches() {
+    let (server, fake) = FakeScryfall::start(vec![
+        card_named("Glorybringer"),
+        fixture("transform_delver"),
+    ])
+    .await;
+    let search = search(&server).await;
+    let page = search.first_page(&by_name("")).await.unwrap();
+    let urls: Vec<&str> = page.cards.iter().filter_map(|c| c.image_url()).collect();
+    let delver_id = page.cards[0].id().to_owned();
+    assert_eq!(
+        urls,
+        [
+            fake.image_url(&delver_id),
+            fake.image_url("id-glorybringer")
+        ],
+        "the front face's image on a transform card"
+    );
+    let bytes = search.image(urls[1]).await.unwrap();
+    assert_eq!(bytes, std::fs::read(CARD_IMAGE_FIXTURE).unwrap());
+    let err = search.image("not a url").await.unwrap_err();
+    assert!(matches!(err, SearchError::InvalidImageUrl(_)), "{err}");
 }
