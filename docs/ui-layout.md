@@ -178,7 +178,7 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 - **Search bar** shows the query as typed. When `search.base` is set, its terms appear dimmed on the right of the border as `+ game:paper -is:funny`, because every search adds them.
 
 - **Results rows** show name, mana cost and card types. Supertypes and subtypes are left out. Double-faced cards show both faces joined with ` // `, and a face with no mana cost shows `—`.
-- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`, then the rulings. Each ruling's date stands in a column left of its text, or above it below 36 columns:
+- **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, the flavor text in italics as printed on cards, then the legalities for the formats in `detail.formats`, then the rulings. Each ruling's date stands in a column left of its text, or above it below 36 columns:
 
   ```
   Rulings (5)

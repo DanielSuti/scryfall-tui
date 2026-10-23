@@ -1,9 +1,12 @@
 //! The detail of one card: every face's text, the chosen formats' legalities, then the
 //! rulings.
 
+use std::ops::Range;
+
 use ratatui::buffer::Buffer;
 use ratatui::layout::Rect;
-use ratatui::text::Line;
+use ratatui::style::Style;
+use ratatui::text::{Line, Span};
 
 use crate::domain::card::{Card, Face};
 use crate::domain::ruling::{Ruling, RulingsState};
@@ -25,6 +28,22 @@ pub const RULING_DATE_COLUMN_MIN_WIDTH: usize = 36;
 /// Columns of a ruling's date and the gap after it.
 const DATE_COLUMN_WIDTH: usize = 12;
 
+/// A card formatted for the detail.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct CardText {
+    /// The lines, each at most as wide as asked.
+    pub lines: Vec<String>,
+    /// The indices of the lines that hold flavor text, one range per face.
+    pub flavor: Vec<Range<usize>>,
+}
+
+impl CardText {
+    /// Returns true when line `index` holds flavor text.
+    pub fn is_flavor(&self, index: usize) -> bool {
+        self.flavor.iter().any(|range| range.contains(&index))
+    }
+}
+
 /// Formats `card` into lines of at most `width` columns: for each face its name and cost,
 /// its full type line and stats, its oracle text and its flavor text, with faces separated
 /// by a `//` line; then the legality of each of `formats` the card reports, in that order;
@@ -34,15 +53,16 @@ pub fn format_card(
     formats: &[String],
     rulings: Option<&RulingsState>,
     width: usize,
-) -> Vec<String> {
+) -> CardText {
     let mut lines = Vec::new();
+    let mut flavor = Vec::new();
     for (index, face) in card.faces().iter().enumerate() {
         if index > 0 {
             lines.push(String::new());
             lines.push("//".to_owned());
             lines.push(String::new());
         }
-        format_face(face, width, &mut lines);
+        format_face(face, width, &mut lines, &mut flavor);
     }
     let legalities: Vec<String> = formats
         .iter()
@@ -74,13 +94,17 @@ pub fn format_card(
         lines.push(String::new());
         format_rulings(rulings, width, &mut lines);
     }
-    lines
-        .into_iter()
-        .map(|line| truncate(&line, width))
-        .collect()
+    CardText {
+        lines: lines
+            .into_iter()
+            .map(|line| truncate(&line, width))
+            .collect(),
+        flavor,
+    }
 }
 
-fn format_face(face: &Face, width: usize, lines: &mut Vec<String>) {
+/// Adds the lines of `face` to `lines`, and the range of its flavor text lines to `flavor`.
+fn format_face(face: &Face, width: usize, lines: &mut Vec<String>, flavor: &mut Vec<Range<usize>>) {
     lines.push(spread(&face.name, face.display_cost(), width));
     let type_line = face.type_line.as_ref().map_or("—", |t| t.full());
     lines.push(spread(type_line, &face.stats().unwrap_or_default(), width));
@@ -88,9 +112,11 @@ fn format_face(face: &Face, width: usize, lines: &mut Vec<String>) {
         lines.push(String::new());
         lines.extend(wrap(text, width));
     }
-    if let Some(flavor) = &face.flavor_text {
+    if let Some(text) = &face.flavor_text {
         lines.push(String::new());
-        lines.extend(wrap(flavor, width));
+        let start = lines.len();
+        lines.extend(wrap(text, width));
+        flavor.push(start..lines.len());
     }
 }
 
@@ -152,7 +178,7 @@ fn spread(left: &str, right: &str, width: usize) -> String {
 #[derive(Debug, Clone, Default)]
 pub struct DetailView {
     card_id: Option<String>,
-    lines: Vec<String>,
+    text: CardText,
     scroll: usize,
 }
 
@@ -176,13 +202,15 @@ impl DetailView {
             self.scroll = 0;
             self.card_id = id;
         }
-        self.lines = card.map_or_else(Vec::new, |c| format_card(c, formats, rulings, width));
-        self.scroll = self.scroll.min(self.lines.len().saturating_sub(1));
+        self.text = card.map_or_else(CardText::default, |c| {
+            format_card(c, formats, rulings, width)
+        });
+        self.scroll = self.scroll.min(self.text.lines.len().saturating_sub(1));
     }
 
     /// Returns the formatted lines.
     pub fn lines(&self) -> &[String] {
-        &self.lines
+        &self.text.lines
     }
 
     /// Returns the index of the top visible line.
@@ -191,7 +219,7 @@ impl DetailView {
     }
 
     /// Draws the lines from the scroll position into `area`, each indented by one column, with
-    /// the matches of `search` in `theme.find_keyword`. The top line, the current one, shows its
+    /// flavor text in `theme.flavor` and the matches of `search` in `theme.find_keyword`. The top line, the current one, shows its
     /// position among the matching lines at its right end.
     pub fn render(
         &self,
@@ -200,7 +228,7 @@ impl DetailView {
         theme: &Theme,
         search: Option<&PaneSearch<'_>>,
     ) {
-        if self.lines.is_empty() {
+        if self.text.lines.is_empty() {
             buf.set_line(
                 area.x + 1,
                 area.y,
@@ -209,12 +237,19 @@ impl DetailView {
             );
             return;
         }
-        for (row, line) in self.lines.iter().skip(self.scroll).enumerate() {
-            let Ok(row) = u16::try_from(row) else { break };
+        for (index, line) in self.text.lines.iter().enumerate().skip(self.scroll) {
+            let Ok(row) = u16::try_from(index - self.scroll) else {
+                break;
+            };
             if row >= area.height {
                 break;
             }
-            let mut text = Line::from(line.clone());
+            let style = if self.text.is_flavor(index) {
+                theme.flavor
+            } else {
+                Style::default()
+            };
+            let mut text = Line::from(Span::styled(line.clone(), style));
             if let Some(search) = search {
                 text = highlight(text, search.pattern, theme.find_keyword);
             }
@@ -238,7 +273,7 @@ impl DetailView {
 
 impl Searchable for DetailView {
     fn search_lines(&self) -> &[String] {
-        &self.lines
+        &self.text.lines
     }
 
     fn current_line(&self) -> usize {
@@ -246,7 +281,7 @@ impl Searchable for DetailView {
     }
 
     fn jump_to(&mut self, index: usize, _viewport: usize) {
-        self.scroll = index.min(self.lines.len().saturating_sub(1));
+        self.scroll = index.min(self.text.lines.len().saturating_sub(1));
     }
 
     fn first_visible(&self, _viewport: usize) -> usize {
@@ -256,7 +291,7 @@ impl Searchable for DetailView {
 
 impl Navigable for DetailView {
     fn apply_motion(&mut self, motion: Motion, viewport: usize) -> MotionOutcome {
-        let last = self.lines.len().saturating_sub(viewport.max(1));
+        let last = self.text.lines.len().saturating_sub(viewport.max(1));
         let half = (viewport / 2).max(1);
         self.scroll = match motion {
             Motion::Down => (self.scroll + 1).min(last),
@@ -274,6 +309,7 @@ impl Navigable for DetailView {
 mod tests {
     use super::*;
     use crate::scryfall::parse::parse_card;
+    use ratatui::style::Modifier;
 
     fn fixture(name: &str) -> Card {
         let path = format!(
@@ -290,7 +326,7 @@ mod tests {
     #[test]
     fn single_face_shows_text_flavor_and_legalities() {
         let card = fixture("normal_glorybringer");
-        let lines = format_card(&card, &formats(&["standard", "commander"]), None, 40);
+        let lines = format_card(&card, &formats(&["standard", "commander"]), None, 40).lines;
         assert_eq!(
             lines[0],
             format!("Glorybringer{}{{3}}{{R}}{{R}}", " ".repeat(19))
@@ -313,7 +349,7 @@ mod tests {
     #[test]
     fn faces_are_separated_and_each_has_its_own_block() {
         let card = fixture("transform_delver");
-        let lines = format_card(&card, &[], None, 40);
+        let lines = format_card(&card, &[], None, 40).lines;
         let separator = lines.iter().position(|l| l == "//").unwrap();
         assert!(lines[0].starts_with("Delver of Secrets") && lines[0].ends_with("{U}"));
         assert!(lines[1].starts_with("Creature — Human Wizard") && lines[1].ends_with("1/1"));
@@ -331,7 +367,7 @@ mod tests {
             ("split_fire_ice", ["Fire", "Ice"]),
             ("adventure_bonecrusher", ["Bonecrusher Giant", "Stomp"]),
         ] {
-            let lines = format_card(&fixture(name), &[], None, 60);
+            let lines = format_card(&fixture(name), &[], None, 60).lines;
             for half in halves {
                 assert!(
                     lines.iter().any(|l| l.starts_with(half)),
@@ -345,7 +381,7 @@ mod tests {
     fn legalities_use_two_columns_when_wide() {
         let card = fixture("normal_glorybringer");
         let chosen = formats(&["standard", "pioneer", "modern"]);
-        let wide = format_card(&card, &chosen, None, 60);
+        let wide = format_card(&card, &chosen, None, 60).lines;
         assert_eq!(
             &wide[wide.len() - 2..],
             [
@@ -353,7 +389,7 @@ mod tests {
                 "pioneer    legal"
             ]
         );
-        let unknown = format_card(&card, &formats(&["bogus"]), None, 60);
+        let unknown = format_card(&card, &formats(&["bogus"]), None, 60).lines;
         assert!(!unknown.iter().any(|l| l.contains("bogus")));
     }
 
@@ -375,8 +411,8 @@ mod tests {
     fn ruling_lines(rulings: Option<&RulingsState>, width: usize) -> Vec<String> {
         let card = fixture("normal_glorybringer");
         let chosen = formats(&["standard"]);
-        let without = format_card(&card, &chosen, None, width).len();
-        format_card(&card, &chosen, rulings, width)[without..].to_vec()
+        let without = format_card(&card, &chosen, None, width).lines.len();
+        format_card(&card, &chosen, rulings, width).lines[without..].to_vec()
     }
 
     #[test]
@@ -428,6 +464,45 @@ mod tests {
             ),
             ["", "Rulings: cannot reach Scryfall"]
         );
+    }
+
+    #[test]
+    fn flavor_text_is_drawn_in_italics_and_oracle_text_is_not() {
+        let card = fixture("normal_glorybringer");
+        let flavor = card.faces()[0].flavor_text.clone().unwrap();
+        let first_word = flavor.split_whitespace().next().unwrap();
+        let text = format_card(&card, &[], None, 40);
+        let first = text
+            .lines
+            .iter()
+            .position(|l| l.starts_with(first_word))
+            .unwrap();
+        assert_eq!(
+            text.flavor,
+            vec![(first..text.lines.len())],
+            "{:#?}",
+            text.lines
+        );
+        assert!(
+            !text.is_flavor(first - 1),
+            "the blank line before is not flavor"
+        );
+
+        let mut view = DetailView::new();
+        view.show(Some(&card), &[], None, 40);
+        let area = Rect::new(0, 0, 42, 20);
+        let mut buf = Buffer::empty(area);
+        view.render(area, &mut buf, &Theme::default(), None);
+        let italic = |row: usize| {
+            let y = u16::try_from(row).unwrap();
+            (1..=3).all(|x| buf[(x, y)].modifier.contains(Modifier::ITALIC))
+        };
+        assert_eq!(text.lines[3], "Flying, haste");
+        assert!(
+            !italic(0) && !italic(3),
+            "name and oracle text stay upright"
+        );
+        assert!(italic(first) && italic(text.lines.len() - 1));
     }
 
     #[test]
