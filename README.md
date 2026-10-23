@@ -211,3 +211,16 @@ cargo test --test scryfall_recorded -- --ignored record_scryfall_answers
 ```
 
 If Scryfall answers 429, the recorder stops. Wait a few minutes before running it again.
+
+## License
+
+The code of `scry` is licensed under either of
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
+- MIT license ([LICENSE-MIT](LICENSE-MIT))
+
+at your option. Unless you say otherwise, any contribution you submit for inclusion in `scry` is dual-licensed in the same way, without any further terms.
+
+This license covers the code only. Card names, text and images, and the card data `scry` shows, belong to their owners and are not covered by it. The same goes for the Scryfall data saved under `tests/fixtures/scryfall/` and `tests/recordings/`. `scry` fetches card data and images from [Scryfall](https://scryfall.com), which provides them under its [terms of use](https://scryfall.com/docs/api), and is not affiliated with or endorsed by Scryfall.
+
+`scry` is unofficial Fan Content permitted under the [Fan Content Policy](https://company.wizards.com/en/legal/fancontentpolicy). Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.

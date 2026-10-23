@@ -7,6 +7,7 @@ All notable changes to this project are documented in this file, newest release 
 ### Added
 - Cargo package `scry` with a `--version` flag, and lint settings requiring documented public items.
 - Project rules (`CLAUDE.md`), README usage, architecture and UI layout docs, and a backlog of ideas.
+- Dual MIT or Apache-2.0 license for the code, with a README note that card data and images belong to Wizards of the Coast and Scryfall, and the Wizards Fan Content notice.
 - GitHub Actions workflow running rustfmt, clippy and the tests.
 - Terminal UI shell: raw-mode terminal setup and restore, an async event loop, and a status line showing the mode. `Q` quits.
 - Display-width truncation helper that marks cut text with `...`.
