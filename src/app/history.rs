@@ -83,6 +83,12 @@ impl History {
         self.entries.truncate(self.max_entries.get());
     }
 
+    /// Keeps at most `max_entries` from now on, dropping the oldest entries beyond it.
+    pub fn set_max_entries(&mut self, max_entries: NonZeroUsize) {
+        self.max_entries = max_entries;
+        self.entries.truncate(max_entries.get());
+    }
+
     /// Sets the count of `query`'s entry. Does nothing when the query is not in the history.
     pub fn set_total(&mut self, query: &str, total_cards: Option<u32>) {
         if let Some(entry) = self.entries.iter_mut().find(|e| e.query == query) {
@@ -194,6 +200,18 @@ mod tests {
             history.record(q);
         }
         assert_eq!(queries(&history), ["c", "b"]);
+    }
+
+    #[test]
+    fn a_lower_cap_keeps_the_newest_entries() {
+        let mut history = History::new(max(5));
+        for q in ["a", "b", "c", "d"] {
+            history.record(q);
+        }
+        history.set_max_entries(max(2));
+        assert_eq!(queries(&history), ["d", "c"]);
+        history.record("e");
+        assert_eq!(queries(&history), ["e", "d"]);
     }
 
     #[test]

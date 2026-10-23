@@ -120,6 +120,25 @@ pub enum LoadMode {
     Never,
 }
 
+impl LoadMode {
+    /// Every mode, in the order the config window cycles them.
+    pub const ALL: [LoadMode; 3] = [LoadMode::Auto, LoadMode::Trigger, LoadMode::Never];
+
+    /// Returns the mode's name in the config file, such as `trigger`.
+    pub fn name(self) -> &'static str {
+        match self {
+            LoadMode::Auto => "auto",
+            LoadMode::Trigger => "trigger",
+            LoadMode::Never => "never",
+        }
+    }
+
+    /// Returns the mode named `name` in the config file, or `None`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.name() == name)
+    }
+}
+
 /// A table saying when the detail loads one kind of data, in the split and in the full detail.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]

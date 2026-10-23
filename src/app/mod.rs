@@ -7,3 +7,4 @@ pub mod history;
 pub mod paths;
 pub mod results_cache;
 pub mod selection;
+pub mod settings;
