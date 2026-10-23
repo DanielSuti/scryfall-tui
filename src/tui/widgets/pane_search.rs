@@ -2,9 +2,12 @@
 
 use std::ops::Range;
 
+use ratatui::buffer::Buffer;
+use ratatui::layout::Rect;
 use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 
+use crate::tui::text::display_width;
 use crate::tui::widgets::item_list::{ItemList, Motion, MotionOutcome};
 
 /// A panel whose text lines `/` can search and whose cursor or scroll position can jump to a
@@ -67,11 +70,57 @@ pub struct Found {
     pub wrapped: bool,
 }
 
-/// What `/` shows in the focused panel: the matches of `pattern`.
+/// What `/` shows in the focused panel: the matches of `pattern`, and where the current line
+/// stands among the matching lines.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PaneSearch<'a> {
     /// The pattern being typed, or the last one searched for.
     pub pattern: &'a str,
+    /// The current line's rank among the matching lines, from 1, and their count. `None` when
+    /// the current line doesn't match.
+    pub position: Option<(usize, usize)>,
+}
+
+impl PaneSearch<'_> {
+    /// Returns the position as drawn on the current line, such as `[2/9]`, as yazi shows it.
+    pub fn position_label(&self) -> Option<String> {
+        self.position
+            .map(|(rank, count)| format!("[{rank}/{count}]"))
+    }
+}
+
+/// Draws the position label of `search`, such as `[2/9]`, at the right end of `row`, a
+/// one-line area, in `style` over the cells' own style. Draws nothing without a position or
+/// when the label doesn't fit.
+pub fn draw_position(buf: &mut Buffer, row: Rect, search: &PaneSearch<'_>, style: Style) {
+    let Some(label) = search.position_label() else {
+        return;
+    };
+    let label = format!(" {label}");
+    let width = u16::try_from(display_width(&label)).unwrap_or(u16::MAX);
+    if width > row.width {
+        return;
+    }
+    buf.set_stringn(
+        row.right() - width,
+        row.y,
+        &label,
+        usize::from(width),
+        style,
+    );
+}
+
+/// Returns the rank of line `current` among the lines matching `pattern`, from 1, and the
+/// number of matching lines. Returns `None` when line `current` doesn't match.
+pub fn match_position(lines: &[String], pattern: &str, current: usize) -> Option<(usize, usize)> {
+    let matching: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| !match_ranges(line, pattern).is_empty())
+        .map(|(index, _)| index)
+        .collect();
+    let rank = matching.iter().position(|index| *index == current)?;
+    Some((rank + 1, matching.len()))
 }
 
 /// Returns the byte ranges of `text` where `pattern` occurs, left to right and without overlap.
@@ -186,6 +235,21 @@ mod tests {
         assert_eq!(match_ranges("Lim-Dûl", "dûl"), vec![(4..8)]);
         assert_eq!(match_ranges("aaaa", "aa"), [0..2, 2..4]);
         assert!(match_ranges("text", "").is_empty());
+    }
+
+    #[test]
+    fn the_position_counts_matching_lines() {
+        let lines = lines(&["Dragon Mage", "Glorybringer", "Shivan Dragon", "Old Dragon"]);
+        assert_eq!(match_position(&lines, "dragon", 0), Some((1, 3)));
+        assert_eq!(match_position(&lines, "dragon", 2), Some((2, 3)));
+        assert_eq!(match_position(&lines, "dragon", 3), Some((3, 3)));
+        assert_eq!(match_position(&lines, "dragon", 1), None);
+        assert_eq!(match_position(&lines, "zzz", 0), None);
+        let search = PaneSearch {
+            pattern: "dragon",
+            position: Some((2, 9)),
+        };
+        assert_eq!(search.position_label().as_deref(), Some("[2/9]"));
     }
 
     #[test]

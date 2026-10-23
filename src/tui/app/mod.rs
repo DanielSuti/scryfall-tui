@@ -41,7 +41,7 @@ use crate::tui::views::history::HistoryView;
 use crate::tui::views::results::{ResultsView, load_summary};
 use crate::tui::views::search_bar::SearchBar;
 use crate::tui::widgets::item_list::{Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::{Pane, PaneSearch};
+use crate::tui::widgets::pane_search::{Pane, PaneSearch, Searchable, match_position};
 use crate::tui::widgets::query_input::QueryInput;
 use crate::tui::widgets::status_line::{StatusLine, StatusMessage};
 use crate::tui::widgets::which_key::{WhichKey, WhichKeyEntry, WhichKeyPopup, pair_case_twins};
@@ -535,6 +535,16 @@ impl App {
         }
     }
 
+    /// Returns the focused panel's searchable content, or `None` for a panel without it.
+    fn focused_searchable(&self) -> Option<&dyn Searchable> {
+        match (self.focus, self.main_view) {
+            (Panel::Main, MainView::Results | MainView::Split) => Some(&self.results),
+            (Panel::Main, MainView::FullDetail) | (Panel::Detail, _) => Some(&self.detail),
+            (Panel::History, _) => Some(&self.history_view),
+            (Panel::SearchBar, _) => None,
+        }
+    }
+
     fn motion(&mut self, motion: Motion) -> MotionOutcome {
         let outcome = self
             .focused_pane()
@@ -685,13 +695,18 @@ impl App {
         pattern.filter(|p| !p.is_empty())
     }
 
-    /// Returns what `/` shows in `panel`: the active pattern when `panel` has focus, since only
-    /// the focused panel is searched.
-    fn pane_search_in(&self, panel: Panel) -> Option<PaneSearch<'_>> {
+    /// Returns what `/` shows in `panel`: the active pattern and the current line's position
+    /// among the matching lines, when `panel` has focus, since only the focused panel is
+    /// searched.
+    pub fn pane_search_in(&self, panel: Panel) -> Option<PaneSearch<'_>> {
         if self.focus != panel {
             return None;
         }
-        self.active_pattern().map(|pattern| PaneSearch { pattern })
+        let pattern = self.active_pattern()?;
+        let position = self
+            .focused_searchable()
+            .and_then(|pane| match_position(pane.search_lines(), pattern, pane.current_line()));
+        Some(PaneSearch { pattern, position })
     }
 
     /// The message shown while no event message is set: a problem in `detail.formats`, then

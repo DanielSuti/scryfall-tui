@@ -22,6 +22,8 @@ pub struct Theme {
     pub dim: Style,
     /// The text that `/` matches, as yazi's `find_keyword`.
     pub find_keyword: Style,
+    /// The position of the current line among the matching lines, as yazi's `find_position`.
+    pub find_position: Style,
 }
 
 impl Default for Theme {
@@ -39,6 +41,9 @@ impl Default for Theme {
                     .union(Modifier::ITALIC)
                     .union(Modifier::UNDERLINED),
             ),
+            find_position: Style::new()
+                .fg(Color::Magenta)
+                .add_modifier(Modifier::BOLD.union(Modifier::ITALIC)),
         }
     }
 }

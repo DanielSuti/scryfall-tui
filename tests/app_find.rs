@@ -137,3 +137,68 @@ async fn only_the_focused_panel_lights_up() {
     );
     assert!(any_lit(&h), "the history entry `o` lights up");
 }
+
+/// Returns the text of the main panel's row that holds `name`.
+fn row_with(h: &Harness, name: &str) -> String {
+    h.screen()
+        .lines()
+        .find(|l| l.contains(name))
+        .unwrap_or_else(|| panic!("no row with {name:?}"))
+        .to_owned()
+}
+
+#[tokio::test]
+async fn the_current_line_shows_its_position_among_the_matches() {
+    let mut h = Harness::start(cards(), 175, 6).await;
+    h.search("o").await;
+    h.press("/");
+    h.type_text("dragon");
+    h.press("<CR>");
+    assert_eq!(h.app.results_cursor(), 2);
+    assert!(
+        row_with(&h, "Shivan Dragon").ends_with(" [2/2]┃"),
+        "{}",
+        row_with(&h, "Shivan")
+    );
+    assert!(
+        !row_with(&h, "Dragon Mage").contains("[1/2]"),
+        "only on the current line"
+    );
+    let label = cells_of(&h, "[2/2]");
+    assert!(
+        label
+            .iter()
+            .all(|c| c.fg == Color::Magenta && c.bg == Color::Blue)
+    );
+    h.press("n");
+    assert!(
+        row_with(&h, "Dragon Mage").ends_with(" [1/2]┃"),
+        "{}",
+        row_with(&h, "Mage")
+    );
+    h.press("N");
+    assert!(row_with(&h, "Shivan Dragon").ends_with(" [2/2]┃"));
+}
+
+#[tokio::test]
+async fn the_position_shows_while_typing_and_not_on_other_lines() {
+    let mut h = Harness::start(cards(), 175, 6).await;
+    h.search("o").await;
+    h.press("/");
+    h.type_text("sol");
+    assert!(
+        row_with(&h, "Sol Ring").ends_with(" [1/1]┃"),
+        "{}",
+        row_with(&h, "Sol")
+    );
+    h.press("<CR>k");
+    assert!(
+        !h.screen().contains("/1]"),
+        "the current line doesn't match"
+    );
+    h.press("<Esc>j");
+    assert!(
+        !h.screen().contains("[1/1]"),
+        "no position once the highlight is cleared"
+    );
+}

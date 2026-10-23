@@ -113,7 +113,7 @@ The focused panel has a heavy, green and bold border, as lazygit's `activeBorder
 | | `<leader>ss` | Focus the search bar and clear it, in insert mode. |
 | | `<leader>sk` | Keymaps picker. |
 | | `2` / `3` / `0` | Focus history (an overlay when hidden), the main panel, or the detail (split only). |
-| | `/`, `n`, `N` | Search the focused panel's text. Matches light up as you type and the cursor moves to the first one; `<Enter>` keeps the search, `<Esc>` in the prompt cancels it. |
+| | `/`, `n`, `N` | Search the focused panel's text. Matches light up as you type and the cursor moves to the first one; `<Enter>` keeps the search, `<Esc>` in the prompt cancels it. A matching current line shows its position among the matching lines at its right end, such as `[2/9]`, as in yazi. |
 | | `<Esc>` | Clear the search highlight. |
 | | `,` then a letter | Sort the results. See below. |
 | | `Q` | Quit. |

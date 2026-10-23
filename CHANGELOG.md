@@ -49,3 +49,4 @@ All notable changes to this project are documented in this file, newest release 
 - The history shows no selection while it doesn't have focus, and its entries use the full width.
 - Backlog of readability ideas taken from tig, yazi and lazygit.
 - `/` highlights the matches in the focused panel as you type and moves the cursor to the first one, as yazi does. `<Esc>` in the prompt cancels the search and restores the cursor, and `<Esc>` in normal mode clears the highlight.
+- A line matching the `/` search shows its position among the matching lines, such as `[2/9]`, at its right end, as yazi does.

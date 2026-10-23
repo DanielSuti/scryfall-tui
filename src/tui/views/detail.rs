@@ -8,7 +8,9 @@ use crate::domain::card::{Card, Face};
 use crate::tui::text::{display_width, truncate, wrap};
 use crate::tui::theme::Theme;
 use crate::tui::widgets::item_list::{Motion, MotionOutcome};
-use crate::tui::widgets::pane_search::{Navigable, PaneSearch, Searchable, highlight};
+use crate::tui::widgets::pane_search::{
+    Navigable, PaneSearch, Searchable, draw_position, highlight,
+};
 
 /// From this width on the legalities are laid out in two columns.
 pub const LEGALITY_TWO_COLUMN_MIN_WIDTH: usize = 50;
@@ -127,7 +129,8 @@ impl DetailView {
     }
 
     /// Draws the lines from the scroll position into `area`, each indented by one column, with
-    /// the matches of `search` in `theme.find_keyword`.
+    /// the matches of `search` in `theme.find_keyword`. The top line, the current one, shows its
+    /// position among the matching lines at its right end.
     pub fn render(
         &self,
         area: Rect,
@@ -159,6 +162,14 @@ impl DetailView {
                 &text,
                 area.width.saturating_sub(1),
             );
+            if let (0, Some(search)) = (row, search) {
+                let line_area = Rect {
+                    y: area.y,
+                    height: 1,
+                    ..area
+                };
+                draw_position(buf, line_area, search, theme.find_position);
+            }
         }
     }
 }

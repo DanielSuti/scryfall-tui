@@ -23,7 +23,7 @@ Ideas and planned work outside the current release. Nothing here is scheduled un
 Ideas taken from tig, yazi and lazygit.
 - Show the sort value as a column when sorting by price, release date, rarity or EDHREC rank, as yazi switches its line mode to the sort field.
 - Color the card data: mana symbols in their colors, and rarity in set-symbol colors, as tig colors its fields.
-- Highlight `/` matches, as tig's `search-result` does, and color the border cyan while searching, as lazygit's `searchingActiveBorderColor`.
+- Color the border cyan while `/` searches, as lazygit's `searchingActiveBorderColor`.
 - Show the position in the panel border, such as `9 of 67`, or a scrollbar, as lazygit and tig do.
 - A loading spinner in the status line while pages load, as in lazygit.
 - A `[theme]` table in the config, with light-terminal defaults as lazygit's `lightTheme`, and `NO_COLOR` support.
