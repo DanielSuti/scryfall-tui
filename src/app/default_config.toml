@@ -1,0 +1,29 @@
+[search]
+# terms added to every search; "" for none
+base = "game:paper -is:funny"
+# pages of 175 cards loaded per batch, at least 1
+max_pages = 4
+
+[history]
+# entries kept, at least 1
+max_entries = 40
+
+[detail]
+# formats whose legality the detail shows, in this order; [] hides the legalities
+formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
+
+[detail.rulings]
+# in the split: "auto", "trigger" (on L) or "never"
+split = "trigger"
+# in the full detail: "auto", "trigger" or "never"
+full_detail = "auto"
+# "auto": how long the cursor rests on a card first, in milliseconds; 0 for at once
+pause_ms = 50
+
+[detail.images]
+# in the split: "auto", "trigger" (on L) or "never"
+split = "trigger"
+# in the full detail: "auto", "trigger" or "never"
+full_detail = "auto"
+# "auto": how long the cursor rests on a card first, in milliseconds; 0 for at once
+pause_ms = 50

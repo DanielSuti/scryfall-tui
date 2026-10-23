@@ -147,29 +147,38 @@ Every search goes to the top of the history, with its result count. Running a qu
 
 ## Configuration
 
-`scry` reads `~/.config/scry/config.toml` if it exists. Every key is optional; these are the defaults:
+`scry` reads `~/.config/scry/config.toml` if it exists. Every key is optional; these are the defaults, with each comment on its own line so a value can be edited without touching it:
 
 ```toml
 [search]
-base = "game:paper -is:funny"   # added to every search; "" for none
-max_pages = 4                   # pages of 175 cards loaded per batch, at least 1
+# terms added to every search; "" for none
+base = "game:paper -is:funny"
+# pages of 175 cards loaded per batch, at least 1
+max_pages = 4
 
 [history]
-max_entries = 40                # entries kept, at least 1
+# entries kept, at least 1
+max_entries = 40
 
 [detail]
 # formats whose legality the detail shows, in this order; [] hides the legalities
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
 
 [detail.rulings]
-split = "trigger"               # in the split: "auto", "trigger" (on L) or "never"
-full_detail = "auto"            # in the full detail: "auto", "trigger" or "never"
-pause_ms = 50                   # "auto": how long the cursor rests on a card first; 0 for at once
+# in the split: "auto", "trigger" (on L) or "never"
+split = "trigger"
+# in the full detail: "auto", "trigger" or "never"
+full_detail = "auto"
+# "auto": how long the cursor rests on a card first, in milliseconds; 0 for at once
+pause_ms = 50
 
 [detail.images]
-split = "trigger"               # in the split: "auto", "trigger" (on L) or "never"
-full_detail = "auto"            # in the full detail: "auto", "trigger" or "never"
-pause_ms = 50                   # "auto": how long the cursor rests on a card first; 0 for at once
+# in the split: "auto", "trigger" (on L) or "never"
+split = "trigger"
+# in the full detail: "auto", "trigger" or "never"
+full_detail = "auto"
+# "auto": how long the cursor rests on a card first, in milliseconds; 0 for at once
+pause_ms = 50
 ```
 
 Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split or stepping with `J`/`K` doesn't fetch every card on the way. A view set to `trigger` fetches them only when you press `L`, which also skips the pause in `auto`, and shows rulings already fetched without it. A view set to `never` neither fetches them nor shows them, even when the other view already did. The same goes for images, and a split on `trigger` leaves no room for the image until `L`.

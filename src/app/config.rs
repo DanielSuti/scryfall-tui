@@ -32,6 +32,10 @@ pub const DEFAULT_FORMATS: &[&str] = &[
 /// when `pause_ms` is not set.
 pub const DEFAULT_PAUSE_MS: u64 = 50;
 
+/// The default configuration as a config file: every key with its default value, and each
+/// comment on its own line above its key, so a value can be edited without touching a comment.
+pub const DEFAULT_CONFIG: &str = include_str!("default_config.toml");
+
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -258,6 +262,29 @@ mod tests {
             );
             assert_eq!(load.pause(), Duration::from_millis(50));
         }
+    }
+
+    #[test]
+    fn the_default_config_file_holds_the_defaults_with_comments_on_their_own_lines() {
+        assert_eq!(parse(DEFAULT_CONFIG).unwrap(), Config::default());
+        for line in DEFAULT_CONFIG.lines() {
+            let line = line.trim();
+            assert!(
+                line.starts_with('#') || !line.contains('#'),
+                "a comment shares a line with a value: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_readme_shows_the_default_config_file() {
+        let readme = include_str!("../../README.md");
+        let section = &readme[readme
+            .find("## Configuration")
+            .expect("a Configuration section")..];
+        let start = section.find("```toml\n").expect("a toml block") + "```toml\n".len();
+        let block = &section[start..start + section[start..].find("```").unwrap()];
+        assert_eq!(block, DEFAULT_CONFIG);
     }
 
     #[test]
