@@ -423,7 +423,7 @@ impl App {
                 description: self
                     .commands
                     .get(c.command)
-                    .map_or_else(|| c.command.to_string(), |cmd| cmd.description.to_owned()),
+                    .map_or_else(|| c.command.to_string(), |cmd| cmd.description.to_string()),
             })
             .collect()
     }
@@ -431,7 +431,11 @@ impl App {
     /// Runs the command with `id`. Unknown ids are ignored, because every bound id is
     /// registered at start-up.
     pub fn run_command(&mut self, id: CommandId) {
-        if let Some(run) = self.commands.get(id).map(|command| command.run) {
+        if let Some(run) = self
+            .commands
+            .get(id)
+            .map(|command| Arc::clone(&command.run))
+        {
             run(self);
         }
     }

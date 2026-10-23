@@ -65,11 +65,5 @@ pub fn command(
     hint: Option<&'static str>,
     run: fn(&mut App),
 ) -> Command<App> {
-    Command {
-        id,
-        description,
-        scope,
-        hint,
-        run,
-    }
+    Command::new(id, description, scope, hint, run)
 }

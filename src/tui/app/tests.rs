@@ -53,13 +53,13 @@ fn scoped_command(
     hint: Option<&'static str>,
 ) {
     app.commands
-        .register(Command {
-            id: CommandId(id),
+        .register(Command::new(
+            CommandId(id),
             description,
             scope,
             hint,
-            run: |_| {},
-        })
+            |_| {},
+        ))
         .unwrap();
     app.keymap
         .bind(Mode::Normal, scope, notation, CommandId(id))
@@ -108,7 +108,7 @@ async fn which_key_appears_after_the_delay_and_lists_the_registry() {
         .map(|b| {
             (
                 b.sequence.tail(1).unwrap().to_string(),
-                app.commands.get(b.command).unwrap().description.to_owned(),
+                app.commands.get(b.command).unwrap().description.to_string(),
             )
         })
         .collect();
@@ -379,7 +379,7 @@ fn keymaps_picker_lists_every_command_and_runs_the_choice() {
     let labels = picker.labels();
     assert_eq!(labels.len(), app.commands().iter().count());
     for (label, command) in labels.iter().zip(app.commands().iter()) {
-        assert!(label.ends_with(command.description), "{label}");
+        assert!(label.ends_with(command.description.as_ref()), "{label}");
         for binding in app.keymap().bindings_for(command.id) {
             assert!(label.contains(&binding.sequence.to_string()), "{label}");
         }

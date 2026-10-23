@@ -15,7 +15,11 @@ pub fn keymap_items<C>(commands: &CommandRegistry<C>, keymap: &Keymap) -> Vec<(S
                 .map(|b| b.sequence.to_string())
                 .collect();
             notations.dedup();
-            (notations.join(" "), command.id, command.description)
+            (
+                notations.join(" "),
+                command.id,
+                command.description.as_ref(),
+            )
         })
         .collect();
     let width = keys
