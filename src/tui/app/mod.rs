@@ -564,6 +564,7 @@ impl App {
             frame,
             areas.search,
             self.title(Panel::SearchBar),
+            &self.config.search.base,
             focused(Panel::SearchBar),
             focused(Panel::SearchBar) && self.mode == Mode::Insert && self.prompt.is_none(),
         );

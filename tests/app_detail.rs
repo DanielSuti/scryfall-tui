@@ -56,6 +56,7 @@ async fn j_and_k_step_cards_in_the_full_detail_and_stop_at_the_last() {
 async fn an_unknown_format_is_reported_with_its_name() {
     let mut config = Config::default();
     config.detail.formats = vec!["modern".into(), "bogus".into()];
+    config.search.base = String::new();
     let mut h = Harness::start_with_config(cards(), 175, config).await;
     h.search("e").await;
     let warning = h.app.format_warning().expect("a warning");

@@ -5,6 +5,14 @@ use crossterm::event::{KeyCode, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
 
+/// An app with the default configuration, except no base terms: these tests are not about
+/// them.
+fn test_app() -> App {
+    let mut config = Config::default();
+    config.search.base = String::new();
+    App::with_config(config)
+}
+
 fn key(code: KeyCode) -> AppEvent {
     AppEvent::Key(KeyEvent::new(code, KeyModifiers::NONE))
 }
@@ -17,7 +25,7 @@ fn type_text(app: &mut App, text: &str) {
 
 #[test]
 fn capital_q_quits_in_normal_mode() {
-    let mut app = App::new();
+    let mut app = test_app();
     type_text(&mut app, "2");
     app.handle_event(key(KeyCode::Char('q')));
     assert!(!app.should_quit());
@@ -27,7 +35,7 @@ fn capital_q_quits_in_normal_mode() {
 
 #[test]
 fn insert_mode_keys_reach_the_input() {
-    let mut app = App::new();
+    let mut app = test_app();
     app.enter_insert_mode();
     type_text(&mut app, "Q x");
     assert!(!app.should_quit());
@@ -68,7 +76,7 @@ fn scoped_command(
 
 #[test]
 fn hints_come_from_the_registry_of_the_scope() {
-    let mut app = App::new();
+    let mut app = test_app();
     let results = Scope("test_results");
     let history = Scope("test_history");
     scoped_command(&mut app, results, "r.detail", "d", "Detail", Some("detail"));
@@ -81,14 +89,14 @@ fn hints_come_from_the_registry_of_the_scope() {
 }
 
 fn app_with_leader_commands() -> App {
-    let mut app = App::new();
+    let mut app = test_app();
     test_command(&mut app, "test.one", "<leader>ab", "First");
     test_command(&mut app, "test.two", "<leader>c", "Second");
     app
 }
 
 fn app_with_instant_group() -> App {
-    let mut app = App::new();
+    let mut app = test_app();
     test_command(&mut app, "test.thing", "\\a", "Thing: up");
     test_command(&mut app, "test.thing_reverse", "\\A", "Thing: down");
     test_command(&mut app, "test.other", "\\o", "Other");
@@ -187,7 +195,7 @@ async fn renders_which_key_popup() {
 }
 
 fn sized(width: u16, height: u16) -> App {
-    let mut app = App::new();
+    let mut app = test_app();
     app.handle_event(AppEvent::Resize(width, height));
     app
 }

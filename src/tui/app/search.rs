@@ -60,11 +60,17 @@ impl App {
     /// Shows the results of `query` in the session's sort order, from the cache when it holds
     /// them, and otherwise starts loading their first batch.
     pub(super) fn run_query(&mut self, query: &str) {
-        let request = SearchRequest::new(query, self.sort_order);
+        let request = self.request_for(query);
         if let Some(start) = self.cache.begin(&request) {
             self.spawn_batch(&request, start);
         }
         self.refresh_results(&request);
+    }
+
+    /// Returns the request for the typed `query`: the session's sort order and the configured
+    /// base terms.
+    pub(super) fn request_for(&self, query: &str) -> SearchRequest {
+        SearchRequest::new(query, self.sort_order).with_base(self.config.search.base.clone())
     }
 
     /// Starts loading the next batch of the displayed request when its loading is paused.

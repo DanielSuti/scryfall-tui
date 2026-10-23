@@ -2,7 +2,7 @@
 //!
 //! The fake holds a list of cards and answers `GET /cards/search` from it. It supports a
 //! documented subset of the query language: every whitespace-separated term must appear in
-//! the card name, ignoring case. A term containing `:` is ignored with a warning, as Scryfall
+//! the card name, ignoring case. Parentheses around terms are dropped. A term containing `:` is ignored with a warning, as Scryfall
 //! warns about expressions it cannot use.
 //!
 //! Sorting models two of Scryfall's orders with their measured `dir=auto` behaviour: `name`
@@ -186,7 +186,12 @@ impl Respond for FakeScryfall {
 
         let mut warnings = Vec::new();
         let mut terms = Vec::new();
+        // Parentheses group terms; the fake has no `or`, so it drops them.
         for term in query.split_whitespace() {
+            let term = term.trim_matches(|c| c == '(' || c == ')');
+            if term.is_empty() {
+                continue;
+            }
             if term.contains(':') {
                 warnings.push(format!("Invalid expression “{term}” was ignored."));
             } else {

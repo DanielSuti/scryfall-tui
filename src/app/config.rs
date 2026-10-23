@@ -7,6 +7,9 @@ use std::path::{Path, PathBuf};
 use serde::Deserialize;
 use thiserror::Error;
 
+/// Terms added to every search when `search.base` is not set: paper cards only, without
+/// joke cards.
+pub const DEFAULT_BASE: &str = "game:paper -is:funny";
 /// Pages loaded per batch when `search.max_pages` is not set.
 pub const DEFAULT_MAX_PAGES: NonZeroU32 = NonZeroU32::new(6).expect("non-zero");
 /// History entries kept when `history.max_entries` is not set.
@@ -40,6 +43,8 @@ pub struct Config {
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct SearchConfig {
+    /// Scryfall terms added to every search, or an empty string for none.
+    pub base: String,
     /// Result pages loaded per batch, at least 1.
     pub max_pages: NonZeroU32,
 }
@@ -47,6 +52,7 @@ pub struct SearchConfig {
 impl Default for SearchConfig {
     fn default() -> Self {
         Self {
+            base: DEFAULT_BASE.to_owned(),
             max_pages: DEFAULT_MAX_PAGES,
         }
     }
@@ -170,6 +176,7 @@ mod tests {
         assert_eq!(missing, Config::default());
         assert_eq!(parse("").unwrap(), Config::default());
         assert_eq!(Config::default().search.max_pages.get(), 6);
+        assert_eq!(Config::default().search.base, "game:paper -is:funny");
         assert_eq!(Config::default().history.max_entries.get(), 100);
         assert_eq!(Config::default().detail.formats.len(), 9);
     }
@@ -181,6 +188,14 @@ mod tests {
         )
         .unwrap();
         assert_eq!(config.search.max_pages.get(), 2);
+        assert_eq!(
+            config.search.base, "game:paper -is:funny",
+            "unset keys keep defaults"
+        );
+        let no_base = parse("[search]\nbase = \"\"").unwrap();
+        assert_eq!(no_base.search.base, "");
+        let custom = parse("[search]\nbase = \"f:commander\"").unwrap();
+        assert_eq!(custom.search.base, "f:commander");
         assert_eq!(config.history.max_entries.get(), 5);
         assert_eq!(config.detail.formats, ["modern"]);
     }
@@ -193,6 +208,7 @@ mod tests {
             ("[search]\nmax_pages = 1.5", "max_pages"),
             ("[search]\nmax_pages = \"\"", "max_pages"),
             ("[history]\nmax_entries = 0", "max_entries"),
+            ("[search]\nbase = 3", "base"),
             ("[search]\nmax_page = 2", "max_page"),
             ("colour = true", "colour"),
         ] {

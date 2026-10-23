@@ -43,3 +43,4 @@ All notable changes to this project are documented in this file, newest release 
 - Which-key popups can carry a title and appear at once for chosen prefixes, and show a lowercase key and its uppercase twin on one line.
 - Tests that need real Scryfall data replay answers recorded once from the API, so no test calls Scryfall. An ignored recorder test refreshes the recordings.
 - The `,` sort keys work in normal mode in every panel, not only on the results.
+- `search.base` in the config adds Scryfall terms to every search, `game:paper -is:funny` by default. The search bar shows them, and the history keeps the query as typed. The README covers installing and using `scry` in full.

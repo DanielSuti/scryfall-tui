@@ -108,7 +108,7 @@ impl CardSearch for ApiSearch {
         request: &'a SearchRequest,
     ) -> BoxFuture<'a, Result<SearchPage, SearchError>> {
         let url = self.client.search_url(
-            &request.query,
+            &request.effective_query(),
             scryfall_order(request.order.field),
             scryfall_dir(request.order),
         );

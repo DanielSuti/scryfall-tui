@@ -162,6 +162,8 @@ Choosing an order runs the displayed query again with Scryfall's `order` and `di
 
 ## Panel contents
 
+- **Search bar** shows the query as typed. When `search.base` is set, its terms appear dimmed on the right of the border as `+ game:paper -is:funny`, because every search adds them.
+
 - **Results rows** show name, mana cost and card types. Supertypes and subtypes are left out. Double-faced cards show both faces joined with ` // `, and a face with no mana cost shows `—`.
 - **Detail** shows each face's name, cost, full type line, power and toughness, loyalty or defense, oracle text and flavor text, then the legalities for the formats in `detail.formats`.
 - **History** shows each query and its result count, newest first.

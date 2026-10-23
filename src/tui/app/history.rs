@@ -4,7 +4,6 @@ use std::path::PathBuf;
 
 use crate::app::command::CommandId;
 use crate::app::history::History;
-use crate::search::SearchRequest;
 use crate::tui::app::App;
 use crate::tui::app::registrar::{Registrar, RegistrationError, command};
 use crate::tui::keymap::mode::Mode;
@@ -99,7 +98,7 @@ impl App {
     /// and moves the history cursor onto it.
     pub(super) fn record_search(&mut self, query: &str) {
         self.history.record(query);
-        let request = SearchRequest::new(query, self.sort_order);
+        let request = self.request_for(query);
         if let Some(total) = self.cache.get(&request).and_then(|r| r.total_cards()) {
             self.history.set_total(query, Some(total));
         }

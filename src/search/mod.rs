@@ -177,18 +177,38 @@ impl SortOrder {
 /// A query and the order its results come in.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct SearchRequest {
-    /// The query, sent to the source unchanged.
+    /// The query as the user typed it.
     pub query: String,
     /// The order of the results.
     pub order: SortOrder,
+    /// Terms added to every query, such as `game:paper`, or empty for none.
+    pub base: String,
 }
 
 impl SearchRequest {
-    /// Creates a request for `query` in `order`.
+    /// Creates a request for `query` in `order`, without base terms.
     pub fn new(query: impl Into<String>, order: SortOrder) -> Self {
         Self {
             query: query.into(),
             order,
+            base: String::new(),
+        }
+    }
+
+    /// Adds `base` to the request's query.
+    #[must_use]
+    pub fn with_base(mut self, base: impl Into<String>) -> Self {
+        self.base = base.into();
+        self
+    }
+
+    /// Returns the query to send: the typed query in parentheses followed by the base terms,
+    /// so an `or` in the typed query keeps its meaning. Without base terms, or with only
+    /// whitespace, the typed query is returned unchanged.
+    pub fn effective_query(&self) -> String {
+        match self.base.trim() {
+            "" => self.query.clone(),
+            base => format!("({}) {base}", self.query),
         }
     }
 }
@@ -272,5 +292,25 @@ pub async fn load_batch(
     match next {
         BatchStart::Next(token) => Some(token),
         BatchStart::Query(_) => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn base_terms_follow_the_parenthesised_query() {
+        let request = SearchRequest::new("t:goblin or t:elf", SortOrder::default());
+        assert_eq!(request.effective_query(), "t:goblin or t:elf");
+        let based = request.clone().with_base("game:paper -is:funny");
+        assert_eq!(
+            based.effective_query(),
+            "(t:goblin or t:elf) game:paper -is:funny"
+        );
+        assert_eq!(
+            request.with_base("  ").effective_query(),
+            "t:goblin or t:elf"
+        );
     }
 }
