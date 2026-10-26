@@ -91,7 +91,7 @@ fn hints_come_from_the_registry_of_the_scope() {
 fn app_with_leader_commands() -> App {
     let mut app = test_app();
     test_command(&mut app, "test.one", "<leader>ab", "First");
-    test_command(&mut app, "test.two", "<leader>c", "Second");
+    test_command(&mut app, "test.two", "<leader>x", "Second");
     app
 }
 
@@ -164,7 +164,7 @@ async fn which_key_appears_after_the_delay_and_lists_the_registry() {
         })
         .collect();
     assert_eq!(listed, expected);
-    for test_key in ["ab", "c"] {
+    for test_key in ["ab", "x"] {
         assert!(
             listed.iter().any(|(keys, _)| keys == test_key),
             "{listed:?}"

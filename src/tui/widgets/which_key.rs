@@ -10,6 +10,7 @@ use ratatui::widgets::{Block, BorderType, Clear, Widget};
 use tokio::time::Instant;
 
 use crate::tui::keymap::dispatcher::Continuation;
+use crate::tui::layout::centered_rect;
 use crate::tui::text::display_width;
 use crate::tui::theme::Theme;
 
@@ -23,6 +24,7 @@ pub struct WhichKey {
     visible: bool,
     continuations: Vec<Continuation>,
     title: Option<&'static str>,
+    instant: bool,
 }
 
 impl WhichKey {
@@ -42,6 +44,14 @@ impl WhichKey {
         }
         self.continuations = continuations;
         self.title = title;
+        self.instant = instant;
+    }
+
+    /// Returns true when the pending prefix opens its popup at once, as `,` does. Such a popup
+    /// is a window of its own, drawn in the middle of the screen; the others hint at the keys
+    /// from the corner.
+    pub fn instant(&self) -> bool {
+        self.instant
     }
 
     /// Returns the title of the pending prefix, if it has one.
@@ -97,6 +107,7 @@ pub struct WhichKeyPopup<'a> {
     entries: &'a [WhichKeyEntry],
     title: Option<&'a str>,
     key_style: Style,
+    centered: bool,
 }
 
 /// Separates the subject of a description from its detail, as in `Name: A → Z`.
@@ -152,7 +163,16 @@ impl<'a> WhichKeyPopup<'a> {
             entries,
             title: None,
             key_style: theme.key,
+            centered: false,
         }
+    }
+
+    /// Draws the popup in the middle of its area when `centered` is true, instead of in the
+    /// bottom-right corner.
+    #[must_use]
+    pub fn centered(mut self, centered: bool) -> Self {
+        self.centered = centered;
+        self
     }
 
     /// Sets the title drawn in the border.
@@ -193,11 +213,15 @@ impl WhichKeyPopup<'_> {
 impl Widget for WhichKeyPopup<'_> {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let (width, height) = self.size(area);
-        let popup = Rect {
-            x: area.right() - width,
-            y: area.bottom() - height,
-            width,
-            height,
+        let popup = if self.centered {
+            centered_rect(area, width, height)
+        } else {
+            Rect {
+                x: area.right() - width,
+                y: area.bottom() - height,
+                width,
+                height,
+            }
         };
         Clear.render(popup, buf);
         let mut block = Block::bordered().border_type(BorderType::Rounded);
@@ -268,6 +292,7 @@ mod tests {
         let mut which_key = WhichKey::default();
         which_key.start(Vec::new(), Instant::now(), Some("Sort by"), true);
         assert!(which_key.visible());
+        assert!(which_key.instant());
         assert_eq!(which_key.title(), Some("Sort by"));
         assert_eq!(which_key.deadline(), None);
     }

@@ -1,6 +1,6 @@
 //! The search history, newest first, saved between sessions.
 
-use std::io::{self, Write};
+use std::io;
 use std::num::NonZeroUsize;
 use std::path::{Path, PathBuf};
 
@@ -83,6 +83,12 @@ impl History {
         self.entries.truncate(self.max_entries.get());
     }
 
+    /// Keeps at most `max_entries` from now on, dropping the oldest entries beyond it.
+    pub fn set_max_entries(&mut self, max_entries: NonZeroUsize) {
+        self.max_entries = max_entries;
+        self.entries.truncate(max_entries.get());
+    }
+
     /// Sets the count of `query`'s entry. Does nothing when the query is not in the history.
     pub fn set_total(&mut self, query: &str, total_cards: Option<u32>) {
         if let Some(entry) = self.entries.iter_mut().find(|e| e.query == query) {
@@ -140,17 +146,13 @@ impl History {
             path: path.to_owned(),
             source,
         };
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).map_err(write_error)?;
-        }
-        let temporary = path.with_extension("jsonl.tmp");
-        let mut file = std::fs::File::create(&temporary).map_err(write_error)?;
+        let mut lines = String::new();
         for entry in &self.entries {
             let line = serde_json::to_string(entry).map_err(|err| write_error(err.into()))?;
-            writeln!(file, "{line}").map_err(write_error)?;
+            lines.push_str(&line);
+            lines.push('\n');
         }
-        file.sync_all().map_err(write_error)?;
-        std::fs::rename(&temporary, path).map_err(write_error)
+        crate::app::files::write_atomically(path, lines.as_bytes()).map_err(write_error)
     }
 }
 
@@ -194,6 +196,18 @@ mod tests {
             history.record(q);
         }
         assert_eq!(queries(&history), ["c", "b"]);
+    }
+
+    #[test]
+    fn a_lower_cap_keeps_the_newest_entries() {
+        let mut history = History::new(max(5));
+        for q in ["a", "b", "c", "d"] {
+            history.record(q);
+        }
+        history.set_max_entries(max(2));
+        assert_eq!(queries(&history), ["d", "c"]);
+        history.record("e");
+        assert_eq!(queries(&history), ["e", "d"]);
     }
 
     #[test]

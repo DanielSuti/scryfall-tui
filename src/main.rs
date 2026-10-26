@@ -25,8 +25,9 @@ async fn main() -> ExitCode {
 }
 
 async fn run() -> Result<(), Box<dyn std::error::Error>> {
-    let config = match paths::config_file() {
-        Some(path) => Config::load(&path)?,
+    let config_path = paths::config_file();
+    let config = match &config_path {
+        Some(path) => Config::load(path)?,
         None => Config::default(),
     };
     let history_path = paths::history_file();
@@ -45,6 +46,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     };
     let mut app = App::with_services(config, services);
     app.set_history(history, history_path);
+    app.set_config_path(config_path);
     scry::tui::terminal::run(app, background).await?;
     Ok(())
 }

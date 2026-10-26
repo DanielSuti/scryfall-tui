@@ -3,7 +3,10 @@
 
 pub mod command;
 pub mod config;
+pub mod config_file;
+pub mod files;
 pub mod history;
 pub mod paths;
 pub mod results_cache;
 pub mod selection;
+pub mod settings;

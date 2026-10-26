@@ -32,6 +32,10 @@ pub const DEFAULT_FORMATS: &[&str] = &[
 /// when `pause_ms` is not set.
 pub const DEFAULT_PAUSE_MS: u64 = 50;
 
+/// The default configuration as a config file: every key with its default value, and each
+/// comment on its own line above its key, so a value can be edited without touching a comment.
+pub const DEFAULT_CONFIG: &str = include_str!("default_config.toml");
+
 /// The whole configuration. Every key is optional, and an unknown key is an error.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -114,6 +118,25 @@ pub enum LoadMode {
     Trigger,
     /// Never. The view doesn't show the data, even when it was loaded in the other view.
     Never,
+}
+
+impl LoadMode {
+    /// Every mode, in the order the config window cycles them.
+    pub const ALL: [LoadMode; 3] = [LoadMode::Auto, LoadMode::Trigger, LoadMode::Never];
+
+    /// Returns the mode's name in the config file, such as `trigger`.
+    pub fn name(self) -> &'static str {
+        match self {
+            LoadMode::Auto => "auto",
+            LoadMode::Trigger => "trigger",
+            LoadMode::Never => "never",
+        }
+    }
+
+    /// Returns the mode named `name` in the config file, or `None`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|mode| mode.name() == name)
+    }
 }
 
 /// A table saying when the detail loads one kind of data, in the split and in the full detail.
@@ -258,6 +281,29 @@ mod tests {
             );
             assert_eq!(load.pause(), Duration::from_millis(50));
         }
+    }
+
+    #[test]
+    fn the_default_config_file_holds_the_defaults_with_comments_on_their_own_lines() {
+        assert_eq!(parse(DEFAULT_CONFIG).unwrap(), Config::default());
+        for line in DEFAULT_CONFIG.lines() {
+            let line = line.trim();
+            assert!(
+                line.starts_with('#') || !line.contains('#'),
+                "a comment shares a line with a value: {line}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_readme_shows_the_default_config_file() {
+        let readme = include_str!("../../README.md");
+        let section = &readme[readme
+            .find("## Configuration")
+            .expect("a Configuration section")..];
+        let start = section.find("```toml\n").expect("a toml block") + "```toml\n".len();
+        let block = &section[start..start + section[start..].find("```").unwrap()];
+        assert_eq!(block, DEFAULT_CONFIG);
     }
 
     #[test]

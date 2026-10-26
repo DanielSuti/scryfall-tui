@@ -71,6 +71,7 @@ The focused panel has a heavy green border, and its selected line is bold on a b
 | `,` then a letter | Sort the results (see below) |
 | `s` | Jump to any text on screen (see below) |
 | `<Space>sk` | List every key and command |
+| `<Space>c` | Change settings for the session (see [Configuration](#configuration)) |
 | `Q` | Quit |
 
 **Search bar, in insert mode:** `<Enter>` runs the search and focuses the results, and `<Esc>` goes back to normal mode.
@@ -119,7 +120,7 @@ Type any query in [Scryfall's search syntax](https://scryfall.com/docs/syntax), 
 
 ## Sorting
 
-Press `,` in any panel to open the "Sort by" window, then press a letter. The uppercase letter sorts the other way round. `<Esc>` closes the window without sorting.
+Press `,` in any panel to open the "Sort by" window in the middle of the screen, then press a letter. The uppercase letter sorts the other way round. `<Esc>` closes the window without sorting.
 
 | Key | Order | Lowercase | Uppercase |
 |---|---|---|---|
@@ -147,34 +148,45 @@ Every search goes to the top of the history, with its result count. Running a qu
 
 ## Configuration
 
-`scry` reads `~/.config/scry/config.toml` if it exists. Every key is optional; these are the defaults:
+`scry` reads `~/.config/scry/config.toml` if it exists. Every key is optional; these are the defaults, with each comment on its own line so a value can be edited without touching it:
 
 ```toml
 [search]
-base = "game:paper -is:funny"   # added to every search; "" for none
-max_pages = 4                   # pages of 175 cards loaded per batch, at least 1
+# terms added to every search; "" for none
+base = "game:paper -is:funny"
+# pages of 175 cards loaded per batch, at least 1
+max_pages = 4
 
 [history]
-max_entries = 40                # entries kept, at least 1
+# entries kept, at least 1
+max_entries = 40
 
 [detail]
 # formats whose legality the detail shows, in this order; [] hides the legalities
 formats = ["standard", "pioneer", "modern", "commander", "legacy", "historic", "alchemy", "brawl", "timeless"]
 
 [detail.rulings]
-split = "trigger"               # in the split: "auto", "trigger" (on L) or "never"
-full_detail = "auto"            # in the full detail: "auto", "trigger" or "never"
-pause_ms = 50                   # "auto": how long the cursor rests on a card first; 0 for at once
+# in the split: "auto", "trigger" (on L) or "never"
+split = "trigger"
+# in the full detail: "auto", "trigger" or "never"
+full_detail = "auto"
+# "auto": how long the cursor rests on a card first, in milliseconds; 0 for at once
+pause_ms = 50
 
 [detail.images]
-split = "trigger"               # in the split: "auto", "trigger" (on L) or "never"
-full_detail = "auto"            # in the full detail: "auto", "trigger" or "never"
-pause_ms = 50                   # "auto": how long the cursor rests on a card first; 0 for at once
+# in the split: "auto", "trigger" (on L) or "never"
+split = "trigger"
+# in the full detail: "auto", "trigger" or "never"
+full_detail = "auto"
+# "auto": how long the cursor rests on a card first, in milliseconds; 0 for at once
+pause_ms = 50
 ```
 
 Rulings take one extra Scryfall request per card, kept for the session. In `auto` mode the cursor must rest on a card for `pause_ms` first, so scrolling through the split or stepping with `J`/`K` doesn't fetch every card on the way. A view set to `trigger` fetches them only when you press `L`, which also skips the pause in `auto`, and shows rulings already fetched without it. A view set to `never` neither fetches them nor shows them, even when the other view already did. The same goes for images, and a split on `trigger` leaves no room for the image until `L`.
 
 Card images take one request to Scryfall's image servers per card, and are shown only in a terminal with a graphics protocol: kitty and Ghostty (kitty's protocol), foot and Windows Terminal (sixel), iTerm2 and WezTerm (iTerm2's protocol). Inside tmux, set `allow-passthrough on`. At start-up `scry` asks the terminal which protocol it supports, which can take up to two seconds in a terminal that doesn't answer; `never` in both views skips that question. Terminals without one, such as Alacritty, show no image.
+
+`<Space>c` opens the config window, listing these settings with their values. `j`/`k` move, `<Tab>` and `<S-Tab>` step through preset values, and `i` or `a` lets you type a value, as in vim, until `<Esc>`. Each change applies at once. `<Enter>` closes the window and saves the changed settings to the config file, creating it from the defaults above if needed and keeping your comments otherwise. `<Esc>` closes it keeping the changes for this session only, and `q` sets back what changed since it opened.
 
 An unknown key or an invalid value stops `scry` at start-up, with an error naming the key and its line. A format name that Scryfall doesn't report is named in the status line.
 
